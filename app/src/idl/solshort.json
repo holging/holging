@@ -1,0 +1,631 @@
+{
+  "address": "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX",
+  "metadata": {
+    "name": "solshort",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "SolShort — Tokenized Hedge Protocol on Solana"
+  },
+  "instructions": [
+    {
+      "name": "add_liquidity",
+      "discriminator": [181,157,89,67,143,182,52,72],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112,111,111,108]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "authority_usdc",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "usdc_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_metadata",
+      "discriminator": [30,35,117,134,196,139,44,25],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112,111,111,108]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shortsol_mint",
+          "writable": true
+        },
+        {
+          "name": "mint_authority"
+        },
+        {
+          "name": "metadata",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_metadata_program",
+          "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [175,175,109,31,13,152,155,237],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shortsol_mint",
+          "writable": true
+        },
+        {
+          "name": "mint_authority"
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "price_update"
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "mint",
+      "discriminator": [51,57,225,47,182,146,137,166],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true
+        },
+        {
+          "name": "shortsol_mint",
+          "writable": true
+        },
+        {
+          "name": "mint_authority"
+        },
+        {
+          "name": "price_update"
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "user_usdc",
+          "writable": true
+        },
+        {
+          "name": "user_shortsol",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "usdc_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "redeem",
+      "discriminator": [184,12,86,149,70,196,97,225],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true
+        },
+        {
+          "name": "shortsol_mint",
+          "writable": true
+        },
+        {
+          "name": "price_update"
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "user_shortsol",
+          "writable": true
+        },
+        {
+          "name": "user_usdc",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "shortsol_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_k",
+      "discriminator": [72,98,9,139,129,229,172,56],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "new_k",
+          "type": "u128"
+        }
+      ]
+    },
+    {
+      "name": "set_pause",
+      "discriminator": [63,32,154,2,56,103,79,45],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "PoolState",
+      "discriminator": [247,237,227,245,215,195,222,70]
+    }
+  ],
+  "events": [
+    {
+      "name": "MintEvent",
+      "discriminator": [197,144,146,149,66,164,95,16]
+    },
+    {
+      "name": "RedeemEvent",
+      "discriminator": [90,114,83,146,212,26,217,59]
+    },
+    {
+      "name": "CircuitBreakerTriggered",
+      "discriminator": [58,7,35,109,165,114,119,58]
+    },
+    {
+      "name": "AddLiquidityEvent",
+      "discriminator": [27,178,153,186,47,196,140,45]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Paused",
+      "msg": "Program is paused"
+    },
+    {
+      "code": 6001,
+      "name": "StaleOracle",
+      "msg": "Oracle price is stale"
+    },
+    {
+      "code": 6002,
+      "name": "OracleConfidenceTooWide",
+      "msg": "Oracle confidence interval too wide"
+    },
+    {
+      "code": 6003,
+      "name": "PriceDeviationTooHigh",
+      "msg": "Price deviation exceeds maximum"
+    },
+    {
+      "code": 6004,
+      "name": "InsufficientLiquidity",
+      "msg": "Insufficient liquidity in vault"
+    },
+    {
+      "code": 6005,
+      "name": "AmountTooSmall",
+      "msg": "Amount too small"
+    },
+    {
+      "code": 6006,
+      "name": "CircuitBreaker",
+      "msg": "Circuit breaker triggered"
+    },
+    {
+      "code": 6007,
+      "name": "RateLimitExceeded",
+      "msg": "Rate limit exceeded"
+    },
+    {
+      "code": 6008,
+      "name": "PriceBelowMinimum",
+      "msg": "Price below minimum"
+    },
+    {
+      "code": 6009,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6010,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidFee",
+      "msg": "Invalid fee"
+    },
+    {
+      "code": 6012,
+      "name": "CirculatingNotZero",
+      "msg": "Cannot update k with tokens in circulation"
+    }
+  ],
+  "types": [
+    {
+      "name": "PoolState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "k",
+            "type": "u128"
+          },
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "total_minted",
+            "type": "u64"
+          },
+          {
+            "name": "total_redeemed",
+            "type": "u64"
+          },
+          {
+            "name": "circulating",
+            "type": "u64"
+          },
+          {
+            "name": "total_fees_collected",
+            "type": "u64"
+          },
+          {
+            "name": "vault_balance",
+            "type": "u64"
+          },
+          {
+            "name": "pyth_feed",
+            "type": "pubkey"
+          },
+          {
+            "name": "shortsol_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "last_oracle_price",
+            "type": "u64"
+          },
+          {
+            "name": "last_oracle_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "mint_auth_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MintEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_in",
+            "type": "u64"
+          },
+          {
+            "name": "tokens_out",
+            "type": "u64"
+          },
+          {
+            "name": "sol_price",
+            "type": "u64"
+          },
+          {
+            "name": "shortsol_price",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RedeemEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "tokens_in",
+            "type": "u64"
+          },
+          {
+            "name": "usdc_out",
+            "type": "u64"
+          },
+          {
+            "name": "sol_price",
+            "type": "u64"
+          },
+          {
+            "name": "shortsol_price",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CircuitBreakerTriggered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault_ratio_bps",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AddLiquidityEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_amount",
+            "type": "u64"
+          },
+          {
+            "name": "new_vault_balance",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

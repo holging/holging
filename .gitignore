@@ -1,0 +1,17 @@
+.anchor
+.DS_Store
+target
+**/*.rs.bk
+node_modules
+test-ledger
+.yarn
+.vercel
+dist
+
+# secrets
+.env
+.env.*
+*.keypair.json
+*-keypair.json
+wallet.json
+id.json

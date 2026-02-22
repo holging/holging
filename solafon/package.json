@@ -1,0 +1,13 @@
+{
+  "name": "solshort-solafon",
+  "version": "0.1.0",
+  "description": "SolShort Mini App shell for Solafon platform",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
