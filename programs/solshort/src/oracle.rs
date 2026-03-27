@@ -12,16 +12,38 @@ pub struct OraclePrice {
     pub timestamp: i64,
 }
 
+/// Read and validate Pyth SOL/USD price with wide deviation (for update_price).
+///
+/// Performs:
+/// 1. Staleness check (MAX_STALENESS_SECS)
+/// 2. Confidence interval check (MAX_CONFIDENCE_PCT)
+/// 3. Price deviation check vs cached price (MAX_UPDATE_PRICE_DEVIATION_BPS = 50%)
+/// 4. Minimum price floor (MIN_PRICE)
+pub fn get_validated_price_wide_deviation(
+    price_update: &Account<PriceUpdateV2>,
+    last_cached_price: u64,
+) -> Result<OraclePrice> {
+    get_validated_price_inner(price_update, last_cached_price, MAX_UPDATE_PRICE_DEVIATION_BPS)
+}
+
 /// Read and validate Pyth SOL/USD price.
 ///
 /// Performs:
 /// 1. Staleness check (MAX_STALENESS_SECS)
 /// 2. Confidence interval check (MAX_CONFIDENCE_PCT)
-/// 3. Price deviation check vs last cached price (MAX_PRICE_DEVIATION_BPS)
+/// 3. Price deviation check vs last cached price (MAX_PRICE_DEVIATION_BPS = 15%)
 /// 4. Minimum price floor (MIN_PRICE)
 pub fn get_validated_price(
     price_update: &Account<PriceUpdateV2>,
     last_cached_price: u64,
+) -> Result<OraclePrice> {
+    get_validated_price_inner(price_update, last_cached_price, MAX_PRICE_DEVIATION_BPS)
+}
+
+fn get_validated_price_inner(
+    price_update: &Account<PriceUpdateV2>,
+    last_cached_price: u64,
+    max_deviation_bps: u64,
 ) -> Result<OraclePrice> {
     let clock = Clock::get()?;
 
@@ -87,7 +109,7 @@ pub fn get_validated_price(
     );
 
     // Price deviation check vs cached price (skip on first update)
-    if last_cached_price > 0 {
+    if max_deviation_bps > 0 && last_cached_price > 0 {
         let deviation = if adjusted_price > last_cached_price {
             adjusted_price - last_cached_price
         } else {
@@ -100,7 +122,7 @@ pub fn get_validated_price(
             .ok_or(error!(SolshortError::MathOverflow))?;
 
         require!(
-            deviation_bps <= MAX_PRICE_DEVIATION_BPS,
+            deviation_bps <= max_deviation_bps,
             SolshortError::PriceDeviationTooHigh
         );
     }

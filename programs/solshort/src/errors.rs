@@ -28,4 +28,8 @@ pub enum SolshortError {
     InvalidFee,
     #[msg("Cannot update k with tokens in circulation")]
     CirculatingNotZero,
+    #[msg("Pool ID too long (max 32 bytes)")]
+    InvalidPoolId,
+    #[msg("Slippage tolerance exceeded")]
+    SlippageExceeded,
 }

@@ -9,7 +9,16 @@
   "instructions": [
     {
       "name": "add_liquidity",
-      "discriminator": [181,157,89,67,143,182,52,72],
+      "discriminator": [
+        181,
+        157,
+        89,
+        67,
+        143,
+        182,
+        52,
+        72
+      ],
       "accounts": [
         {
           "name": "pool_state",
@@ -18,7 +27,12 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [112,111,111,108]
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
               },
               {
                 "kind": "arg",
@@ -41,7 +55,10 @@
         {
           "name": "authority",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
         },
         {
           "name": "token_program",
@@ -61,7 +78,16 @@
     },
     {
       "name": "create_metadata",
-      "discriminator": [30,35,117,134,196,139,44,25],
+      "discriminator": [
+        30,
+        35,
+        117,
+        134,
+        196,
+        139,
+        44,
+        25
+      ],
       "accounts": [
         {
           "name": "pool_state",
@@ -69,7 +95,12 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [112,111,111,108]
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
               },
               {
                 "kind": "arg",
@@ -80,10 +111,57 @@
         },
         {
           "name": "shortsol_mint",
-          "writable": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  111,
+                  114,
+                  116,
+                  115,
+                  111,
+                  108,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
-          "name": "mint_authority"
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
           "name": "metadata",
@@ -92,7 +170,10 @@
         {
           "name": "authority",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
         },
         {
           "name": "token_metadata_program",
@@ -128,7 +209,16 @@
     },
     {
       "name": "initialize",
-      "discriminator": [175,175,109,31,13,152,155,237],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
       "accounts": [
         {
           "name": "pool_state",
@@ -153,14 +243,84 @@
         },
         {
           "name": "shortsol_mint",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  111,
+                  114,
+                  116,
+                  115,
+                  111,
+                  108,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
-          "name": "mint_authority"
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
           "name": "vault_usdc",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
           "name": "usdc_mint"
@@ -199,22 +359,95 @@
     },
     {
       "name": "mint",
-      "discriminator": [51,57,225,47,182,146,137,166],
+      "discriminator": [
+        51,
+        57,
+        225,
+        47,
+        182,
+        146,
+        137,
+        166
+      ],
       "accounts": [
         {
           "name": "pool_state",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
           "name": "vault_usdc",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
           "name": "shortsol_mint",
-          "writable": true
+          "writable": true,
+          "relations": [
+            "pool_state"
+          ]
         },
         {
-          "name": "mint_authority"
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
           "name": "price_update"
@@ -228,6 +461,10 @@
         },
         {
           "name": "user_shortsol",
+          "docs": [
+            "User's shortSOL associated token account.",
+            "Must be created before calling mint (or use create_idempotent on client)."
+          ],
           "writable": true
         },
         {
@@ -252,24 +489,79 @@
         {
           "name": "usdc_amount",
           "type": "u64"
+        },
+        {
+          "name": "min_tokens_out",
+          "type": "u64"
         }
       ]
     },
     {
       "name": "redeem",
-      "discriminator": [184,12,86,149,70,196,97,225],
+      "discriminator": [
+        184,
+        12,
+        86,
+        149,
+        70,
+        196,
+        97,
+        225
+      ],
       "accounts": [
         {
           "name": "pool_state",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
           "name": "vault_usdc",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
           "name": "shortsol_mint",
-          "writable": true
+          "writable": true,
+          "relations": [
+            "pool_state"
+          ]
         },
         {
           "name": "price_update"
@@ -307,20 +599,283 @@
         {
           "name": "shortsol_amount",
           "type": "u64"
+        },
+        {
+          "name": "min_usdc_out",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "remove_liquidity",
+      "discriminator": [
+        80,
+        85,
+        209,
+        72,
+        24,
+        206,
+        177,
+        108
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "price_update"
+        },
+        {
+          "name": "authority_usdc",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "usdc_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_pause",
+      "discriminator": [
+        63,
+        32,
+        154,
+        2,
+        56,
+        103,
+        79,
+        45
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "transfer_authority",
+      "discriminator": [
+        48,
+        169,
+        76,
+        72,
+        229,
+        180,
+        55,
+        161
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
+        },
+        {
+          "name": "new_authority"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "update_fee",
+      "discriminator": [
+        232,
+        253,
+        195,
+        247,
+        148,
+        212,
+        73,
+        222
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "new_fee_bps",
+          "type": "u16"
         }
       ]
     },
     {
       "name": "update_k",
-      "discriminator": [72,98,9,139,129,229,172,56],
+      "discriminator": [
+        72,
+        98,
+        9,
+        139,
+        129,
+        229,
+        172,
+        56
+      ],
       "accounts": [
         {
           "name": "pool_state",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
         },
         {
           "name": "authority",
-          "signer": true
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
         }
       ],
       "args": [
@@ -335,16 +890,117 @@
       ]
     },
     {
-      "name": "set_pause",
-      "discriminator": [63,32,154,2,56,103,79,45],
+      "name": "update_price",
+      "discriminator": [
+        61,
+        34,
+        117,
+        155,
+        75,
+        34,
+        123,
+        208
+      ],
       "accounts": [
         {
           "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pyth_price",
+          "docs": [
+            "Pyth PriceUpdateV2 account (ephemeral, created per-transaction).",
+            "Feed ID is validated inside `get_validated_price_no_deviation`."
+          ]
+        },
+        {
+          "name": "payer",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_fees",
+      "discriminator": [
+        198,
+        212,
+        171,
+        109,
+        144,
+        215,
+        174,
+        89
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "price_update"
+        },
+        {
+          "name": "authority_usdc",
           "writable": true
         },
         {
           "name": "authority",
-          "signer": true
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
@@ -353,8 +1009,8 @@
           "type": "string"
         },
         {
-          "name": "paused",
-          "type": "bool"
+          "name": "amount",
+          "type": "u64"
         }
       ]
     }
@@ -362,25 +1018,122 @@
   "accounts": [
     {
       "name": "PoolState",
-      "discriminator": [247,237,227,245,215,195,222,70]
+      "discriminator": [
+        247,
+        237,
+        227,
+        245,
+        215,
+        195,
+        222,
+        70
+      ]
+    },
+    {
+      "name": "PriceUpdateV2",
+      "discriminator": [
+        34,
+        241,
+        35,
+        99,
+        157,
+        126,
+        244,
+        205
+      ]
     }
   ],
   "events": [
     {
-      "name": "MintEvent",
-      "discriminator": [197,144,146,149,66,164,95,16]
-    },
-    {
-      "name": "RedeemEvent",
-      "discriminator": [90,114,83,146,212,26,217,59]
+      "name": "AddLiquidityEvent",
+      "discriminator": [
+        27,
+        178,
+        153,
+        186,
+        47,
+        196,
+        140,
+        45
+      ]
     },
     {
       "name": "CircuitBreakerTriggered",
-      "discriminator": [58,7,35,109,165,114,119,58]
+      "discriminator": [
+        58,
+        7,
+        35,
+        109,
+        165,
+        114,
+        119,
+        58
+      ]
     },
     {
-      "name": "AddLiquidityEvent",
-      "discriminator": [27,178,153,186,47,196,140,45]
+      "name": "MintEvent",
+      "discriminator": [
+        197,
+        144,
+        146,
+        149,
+        66,
+        164,
+        95,
+        16
+      ]
+    },
+    {
+      "name": "RedeemEvent",
+      "discriminator": [
+        90,
+        114,
+        83,
+        146,
+        212,
+        26,
+        217,
+        59
+      ]
+    },
+    {
+      "name": "RemoveLiquidityEvent",
+      "discriminator": [
+        141,
+        199,
+        182,
+        123,
+        159,
+        94,
+        215,
+        102
+      ]
+    },
+    {
+      "name": "TransferAuthorityEvent",
+      "discriminator": [
+        63,
+        113,
+        189,
+        184,
+        188,
+        94,
+        39,
+        142
+      ]
+    },
+    {
+      "name": "WithdrawFeesEvent",
+      "discriminator": [
+        236,
+        118,
+        138,
+        90,
+        139,
+        173,
+        177,
+        89
+      ]
     }
   ],
   "errors": [
@@ -448,11 +1201,21 @@
       "code": 6012,
       "name": "CirculatingNotZero",
       "msg": "Cannot update k with tokens in circulation"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidPoolId",
+      "msg": "Pool ID too long (max 32 bytes)"
+    },
+    {
+      "code": 6014,
+      "name": "SlippageExceeded",
+      "msg": "Slippage tolerance exceeded"
     }
   ],
   "types": [
     {
-      "name": "PoolState",
+      "name": "AddLiquidityEvent",
       "type": {
         "kind": "struct",
         "fields": [
@@ -461,60 +1224,28 @@
             "type": "pubkey"
           },
           {
-            "name": "k",
-            "type": "u128"
-          },
-          {
-            "name": "fee_bps",
-            "type": "u16"
-          },
-          {
-            "name": "total_minted",
+            "name": "usdc_amount",
             "type": "u64"
           },
           {
-            "name": "total_redeemed",
+            "name": "new_vault_balance",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CircuitBreakerTriggered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault_ratio_bps",
             "type": "u64"
           },
           {
-            "name": "circulating",
-            "type": "u64"
-          },
-          {
-            "name": "total_fees_collected",
-            "type": "u64"
-          },
-          {
-            "name": "vault_balance",
-            "type": "u64"
-          },
-          {
-            "name": "pyth_feed",
-            "type": "pubkey"
-          },
-          {
-            "name": "shortsol_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "paused",
-            "type": "bool"
-          },
-          {
-            "name": "last_oracle_price",
-            "type": "u64"
-          },
-          {
-            "name": "last_oracle_timestamp",
+            "name": "timestamp",
             "type": "i64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "mint_auth_bump",
-            "type": "u8"
           }
         ]
       }
@@ -556,6 +1287,227 @@
       }
     },
     {
+      "name": "PoolState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Admin authority"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "k",
+            "docs": [
+              "Normalizing constant k = P0^2 / PRICE_PRECISION, stored scaled by PRICE_PRECISION"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "fee_bps",
+            "docs": [
+              "Fee in basis points (4 = 0.04%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "total_minted",
+            "docs": [
+              "Total shortSOL ever minted (in token base units, 1e9)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_redeemed",
+            "docs": [
+              "Total shortSOL ever redeemed"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "circulating",
+            "docs": [
+              "Current shortSOL in circulation"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_fees_collected",
+            "docs": [
+              "Cumulative fees collected (USDC, 1e6 precision)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "vault_balance",
+            "docs": [
+              "Current USDC balance in vault (1e6 precision)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "pyth_feed",
+            "docs": [
+              "Pyth SOL/USD price feed account"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "shortsol_mint",
+            "docs": [
+              "shortSOL SPL token mint address"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "docs": [
+              "Emergency pause flag"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "last_oracle_price",
+            "docs": [
+              "Cached last oracle price (scaled 1e9)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_oracle_timestamp",
+            "docs": [
+              "Cached last oracle timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "mint_auth_bump",
+            "docs": [
+              "Mint authority bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PriceFeedMessage",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "docs": [
+              "`FeedId` but avoid the type alias because of compatibility issues with Anchor's `idl-build` feature."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "price",
+            "type": "i64"
+          },
+          {
+            "name": "conf",
+            "type": "u64"
+          },
+          {
+            "name": "exponent",
+            "type": "i32"
+          },
+          {
+            "name": "publish_time",
+            "docs": [
+              "The timestamp of this price update in seconds"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "prev_publish_time",
+            "docs": [
+              "The timestamp of the previous price update. This field is intended to allow users to",
+              "identify the single unique price update for any moment in time:",
+              "for any time t, the unique update is the one such that prev_publish_time < t <= publish_time.",
+              "",
+              "Note that there may not be such an update while we are migrating to the new message-sending logic,",
+              "as some price updates on pythnet may not be sent to other chains (because the message-sending",
+              "logic may not have triggered). We can solve this problem by making the message-sending mandatory",
+              "(which we can do once publishers have migrated over).",
+              "",
+              "Additionally, this field may be equal to publish_time if the message is sent on a slot where",
+              "where the aggregation was unsuccesful. This problem will go away once all publishers have",
+              "migrated over to a recent version of pyth-agent."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "ema_price",
+            "type": "i64"
+          },
+          {
+            "name": "ema_conf",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PriceUpdateV2",
+      "docs": [
+        "A price update account. This account is used by the Pyth Receiver program to store a verified price update from a Pyth price feed.",
+        "It contains:",
+        "- `write_authority`: The write authority for this account. This authority can close this account to reclaim rent or update the account to contain a different price update.",
+        "- `verification_level`: The [`VerificationLevel`] of this price update. This represents how many Wormhole guardian signatures have been verified for this price update.",
+        "- `price_message`: The actual price update.",
+        "- `posted_slot`: The slot at which this price update was posted."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "write_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "verification_level",
+            "type": {
+              "defined": {
+                "name": "VerificationLevel"
+              }
+            }
+          },
+          {
+            "name": "price_message",
+            "type": {
+              "defined": {
+                "name": "PriceFeedMessage"
+              }
+            }
+          },
+          {
+            "name": "posted_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "RedeemEvent",
       "type": {
         "kind": "struct",
@@ -592,23 +1544,7 @@
       }
     },
     {
-      "name": "CircuitBreakerTriggered",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "vault_ratio_bps",
-            "type": "u64"
-          },
-          {
-            "name": "timestamp",
-            "type": "i64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "AddLiquidityEvent",
+      "name": "RemoveLiquidityEvent",
       "type": {
         "kind": "struct",
         "fields": [
@@ -621,7 +1557,76 @@
             "type": "u64"
           },
           {
-            "name": "new_vault_balance",
+            "name": "remaining_vault",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TransferAuthorityEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "old_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerificationLevel",
+      "docs": [
+        "Pyth price updates are bridged to all blockchains via Wormhole.",
+        "Using the price updates on another chain requires verifying the signatures of the Wormhole guardians.",
+        "The usual process is to check the signatures for two thirds of the total number of guardians, but this can be cumbersome on Solana because of the transaction size limits,",
+        "so we also allow for partial verification.",
+        "",
+        "This enum represents how much a price update has been verified:",
+        "- If `Full`, we have verified the signatures for two thirds of the current guardians.",
+        "- If `Partial`, only `num_signatures` guardian signatures have been checked.",
+        "",
+        "# Warning",
+        "Using partially verified price updates is dangerous, as it lowers the threshold of guardians that need to collude to produce a malicious price update."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Partial",
+            "fields": [
+              {
+                "name": "num_signatures",
+                "type": "u8"
+              }
+            ]
+          },
+          {
+            "name": "Full"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawFeesEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_vault",
             "type": "u64"
           }
         ]

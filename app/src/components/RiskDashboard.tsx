@@ -22,7 +22,9 @@ import {
 } from "../utils/math";
 import BN from "bn.js";
 
-const USDC_MINT_PK = new PublicKey("CAMk3KqYMKEtoQnsDyJMmdKUfvh5wa4uYSJvUTDheeGn");
+const USDC_MINT_PK = new PublicKey(
+  import.meta.env.VITE_USDC_MINT || "CAMk3KqYMKEtoQnsDyJMmdKUfvh5wa4uYSJvUTDheeGn"
+);
 
 const STRESS_DROPS = [0.1, 0.25, 0.33, 0.5, 0.75, 0.9];
 
@@ -396,6 +398,8 @@ export function RiskDashboard() {
                 onClick={async () => {
                   setPauseSuccess(null);
                   setPauseError(null);
+                  const action = pool.paused ? "unpause" : "pause";
+                  if (!window.confirm(`Are you sure you want to ${action} the pool? This will ${pool.paused ? "re-enable" : "prevent"} all mints and redeems.`)) return;
                   try {
                     const sig = await setPause(!pool.paused);
                     setPauseSuccess(sig);
@@ -435,6 +439,7 @@ export function RiskDashboard() {
                   onClick={async () => {
                     setKSuccess(null);
                     setKError(null);
+                    if (!window.confirm(`Are you sure you want to update K to ${newKInput}? This changes the pricing formula.`)) return;
                     try {
                       const kBn = new BN(Math.round(parseFloat(newKInput) * 1e9).toString());
                       const sig = await updateK(kBn);

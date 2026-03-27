@@ -21,10 +21,11 @@ import {
   deriveVaultPda,
   POOL_ID,
 } from "../utils/program";
+import { HERMES_URL, SOL_USD_FEED_ID, fetchSolPrice, pythPriceToPrecision } from "../utils/pyth";
+import { calcShortsolPrice, calcMintTokens, calcRedeemUsdc, calcDynamicFee } from "../utils/math";
 
-const HERMES_URL = "https://hermes.pyth.network";
-const SOL_USD_FEED_ID =
-  "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+const SLIPPAGE_BPS = 100; // 1% default slippage tolerance
+const BPS_DENOM = new BN(10_000);
 
 /** Fetch fresh price update VAA from Hermes */
 async function fetchPriceUpdateData(): Promise<string[]> {
@@ -103,8 +104,30 @@ export function useSolshort() {
               priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
             }
 
+            // Update cached price first (no deviation check)
+            const updatePriceIx = await (program.methods as any)
+              .updatePrice(POOL_ID)
+              .accounts({
+                poolState: poolPda,
+                pythPrice: priceUpdateAccount,
+                payer: wallet.publicKey,
+              })
+              .instruction();
+
+            // Calculate slippage-protected minimum output
+            const poolAcc = await (program.account as any).poolState.fetch(poolPda);
+            const solPricePyth = await fetchSolPrice();
+            const solPriceBn = new BN(pythPriceToPrecision(solPricePyth).toString());
+            const shortsolPrice = calcShortsolPrice(new BN(poolAcc.k.toString()), solPriceBn);
+            const dynamicFee = calcDynamicFee(
+              new BN(poolAcc.feeBps), new BN(poolAcc.vaultBalance.toString()),
+              new BN(poolAcc.circulating.toString()), new BN(poolAcc.k.toString()), solPriceBn
+            );
+            const { tokens: expectedTokens } = calcMintTokens(usdcAmount, shortsolPrice, dynamicFee);
+            const minTokensOut = expectedTokens.mul(BPS_DENOM.sub(new BN(SLIPPAGE_BPS))).div(BPS_DENOM);
+
             const mintIx = await (program.methods as any)
-              .mint(POOL_ID, usdcAmount)
+              .mint(POOL_ID, usdcAmount, minTokensOut)
               .accounts({
                 poolState: poolPda,
                 vaultUsdc,
@@ -122,6 +145,7 @@ export function useSolshort() {
 
             return [
               ...preIxs.map((ix) => ({ instruction: ix, signers: [] })),
+              { instruction: updatePriceIx, signers: [] },
               { instruction: mintIx, signers: [] },
             ];
           }
@@ -195,8 +219,30 @@ export function useSolshort() {
               priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
             }
 
+            // Update cached price first (no deviation check)
+            const updatePriceIx = await (program.methods as any)
+              .updatePrice(POOL_ID)
+              .accounts({
+                poolState: poolPda,
+                pythPrice: priceUpdateAccount,
+                payer: wallet.publicKey,
+              })
+              .instruction();
+
+            // Calculate slippage-protected minimum output
+            const poolAcc = await (program.account as any).poolState.fetch(poolPda);
+            const solPricePyth = await fetchSolPrice();
+            const solPriceBn = new BN(pythPriceToPrecision(solPricePyth).toString());
+            const shortsolPrice = calcShortsolPrice(new BN(poolAcc.k.toString()), solPriceBn);
+            const dynamicFee = calcDynamicFee(
+              new BN(poolAcc.feeBps), new BN(poolAcc.vaultBalance.toString()),
+              new BN(poolAcc.circulating.toString()), new BN(poolAcc.k.toString()), solPriceBn
+            );
+            const { usdcOut: expectedUsdc } = calcRedeemUsdc(shortsolAmount, shortsolPrice, dynamicFee);
+            const minUsdcOut = expectedUsdc.mul(BPS_DENOM.sub(new BN(SLIPPAGE_BPS))).div(BPS_DENOM);
+
             const redeemIx = await (program.methods as any)
-              .redeem(POOL_ID, shortsolAmount)
+              .redeem(POOL_ID, shortsolAmount, minUsdcOut)
               .accounts({
                 poolState: poolPda,
                 vaultUsdc,
@@ -211,7 +257,10 @@ export function useSolshort() {
               })
               .instruction();
 
-            return [{ instruction: redeemIx, signers: [] }];
+            return [
+              { instruction: updatePriceIx, signers: [] },
+              { instruction: redeemIx, signers: [] },
+            ];
           }
         );
 
@@ -337,7 +386,74 @@ export function useSolshort() {
     [connection, wallet]
   );
 
-  return { mint, redeem, addLiquidity, setPause, updateK, txSig, loading, error };
+  const updatePrice = useCallback(
+    async () => {
+      if (!wallet) throw new Error("Wallet not connected");
+      setLoading(true);
+      setError(null);
+      try {
+        const program = getProgram(connection, wallet);
+        const [poolPda] = derivePoolPda();
+
+        const priceFeedUpdateData = await fetchPriceUpdateData();
+
+        const pythReceiver = new PythSolanaReceiver({
+          connection,
+          wallet: wallet as any,
+        });
+
+        const txBuilder = pythReceiver.newTransactionBuilder({
+          closeUpdateAccounts: false,
+        });
+        await txBuilder.addPostPriceUpdates(priceFeedUpdateData);
+
+        let priceUpdateAccount: PublicKey;
+        await txBuilder.addPriceConsumerInstructions(
+          async (getPriceUpdateAccount) => {
+            try {
+              priceUpdateAccount = getPriceUpdateAccount(
+                "0x" + SOL_USD_FEED_ID
+              );
+            } catch {
+              priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
+            }
+
+            const updatePriceIx = await (program.methods as any)
+              .updatePrice(POOL_ID)
+              .accounts({
+                poolState: poolPda,
+                pythPrice: priceUpdateAccount,
+                payer: wallet.publicKey,
+              })
+              .instruction();
+
+            return [{ instruction: updatePriceIx, signers: [] }];
+          }
+        );
+
+        const txs = await txBuilder.buildVersionedTransactions({
+          tightComputeBudget: false,
+        });
+
+        const lastSig = await signAndSendVersionedTxs(
+          txs,
+          wallet,
+          connection
+        );
+
+        setTxSig(lastSig);
+        return lastSig;
+      } catch (e: any) {
+        setError(e.message);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [connection, wallet]
+  );
+
+  return { mint, redeem, addLiquidity, setPause, updateK, updatePrice, txSig, loading, error };
 }
 
 /** Sign and send versioned transactions sequentially */
@@ -350,6 +466,10 @@ async function signAndSendVersionedTxs(
   for (const entry of txs) {
     const vtx: VersionedTransaction = entry.tx || entry;
     const ephemeralSigners: Keypair[] = entry.signers || [];
+
+    // Replace blockhash with a fresh one to avoid "Blockhash not found"
+    const { blockhash } = await connection.getLatestBlockhash("confirmed");
+    vtx.message.recentBlockhash = blockhash;
 
     // Ephemeral signers sign first
     if (ephemeralSigners.length > 0) {

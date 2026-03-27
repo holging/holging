@@ -8,16 +8,18 @@ import { RedeemForm } from "./components/RedeemForm";
 import { PortfolioView } from "./components/PortfolioView";
 import { StrategyTerminal } from "./components/StrategyTerminal";
 import { RiskDashboard } from "./components/RiskDashboard";
+import { TokenHolders } from "./components/TokenHolders";
+import { StatePage } from "./components/StatePage";
 import { usePool } from "./hooks/usePool";
 
-// Fake USDC on devnet (6 decimals)
-const USDC_MINT: string | null = "CAMk3KqYMKEtoQnsDyJMmdKUfvh5wa4uYSJvUTDheeGn";
-const ADMIN_WALLETS = [
-  "66HBrTxNii7eFzSTgo8mUzsij3FM7xC2L9jE2H89sDYs",
-  "FLbSeegx6UqXx4doXbtoWWoKBxRoFLrBTmQcoyeXsxjq",
-];
+const USDC_MINT: string | null =
+  import.meta.env.VITE_USDC_MINT || "CAMk3KqYMKEtoQnsDyJMmdKUfvh5wa4uYSJvUTDheeGn";
+const ADMIN_WALLETS = (
+  import.meta.env.VITE_ADMIN_WALLETS ||
+  "66HBrTxNii7eFzSTgo8mUzsij3FM7xC2L9jE2H89sDYs,FLbSeegx6UqXx4doXbtoWWoKBxRoFLrBTmQcoyeXsxjq"
+).split(",");
 
-type Tab = "mint" | "redeem" | "holging" | "risk";
+type Tab = "mint" | "redeem" | "holging" | "holders" | "state" | "risk";
 
 function App() {
   const { connected, publicKey } = useWallet();
@@ -65,6 +67,18 @@ function App() {
           >
             Holging
           </button>
+          <button
+            className={tab === "holders" ? "active" : ""}
+            onClick={() => setTab("holders")}
+          >
+            Holders
+          </button>
+          <button
+            className={tab === "state" ? "active" : ""}
+            onClick={() => setTab("state")}
+          >
+            State
+          </button>
           {isAdmin && (
             <button
               className={tab === "risk" ? "active" : ""}
@@ -78,6 +92,8 @@ function App() {
         {tab === "mint" && <MintForm usdcMint={USDC_MINT} />}
         {tab === "redeem" && <RedeemForm usdcMint={USDC_MINT} />}
         {tab === "holging" && <StrategyTerminal />}
+        {tab === "holders" && <TokenHolders />}
+        {tab === "state" && <StatePage />}
         {tab === "risk" && isAdmin && <RiskDashboard />}
 
         {poolError && (

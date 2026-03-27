@@ -6,6 +6,36 @@ export const USDC_DECIMALS = 6;
 export const SHORTSOL_DECIMALS = 9;
 const DECIMAL_SCALING = new BN(1000); // 10^(9-6)
 
+/** Calculate dynamic fee based on vault health ratio */
+export function calcDynamicFee(
+  baseFee: BN,
+  vaultBalance: BN,
+  circulating: BN,
+  k: BN,
+  solPrice: BN
+): BN {
+  if (circulating.isZero() || solPrice.isZero()) return baseFee;
+  const shortsolPrice = k.mul(PRICE_PRECISION).div(solPrice);
+  const obligations = circulating
+    .mul(shortsolPrice)
+    .div(PRICE_PRECISION)
+    .div(DECIMAL_SCALING);
+  if (obligations.isZero()) return baseFee;
+  const ratioBps = vaultBalance.mul(BPS_DENOMINATOR).div(obligations);
+  const ratio = ratioBps.toNumber();
+  let fee: number;
+  if (ratio > 20_000) {
+    fee = Math.floor(baseFee.toNumber() / 2);
+  } else if (ratio > 15_000) {
+    fee = baseFee.toNumber();
+  } else if (ratio > 10_000) {
+    fee = Math.floor(baseFee.toNumber() * 5 / 2);
+  } else {
+    fee = baseFee.toNumber() * 5;
+  }
+  return new BN(Math.max(Math.min(fee, 100), 1));
+}
+
 export function calcShortsolPrice(k: BN, solPrice: BN): BN {
   // shortSOL_price = k * PRICE_PRECISION / sol_price
   return k.mul(PRICE_PRECISION).div(solPrice);

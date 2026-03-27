@@ -15,3 +15,13 @@ dist
 *-keypair.json
 wallet.json
 id.json
+
+# Local Netlify folder
+.netlify
+
+# Claude/OMC internal
+.claude/
+.omc/
+.agents/
+app/.omc/
+skills-lock.json

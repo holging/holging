@@ -5,6 +5,7 @@ use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use crate::constants::*;
 use crate::errors::SolshortError;
 use crate::events::MintEvent;
+use crate::fees::calc_dynamic_fee;
 use crate::oracle::get_validated_price;
 use crate::state::PoolState;
 
@@ -21,6 +22,8 @@ pub struct MintShortSol<'info> {
 
     #[account(
         mut,
+        seeds = [VAULT_SEED, usdc_mint.key().as_ref(), pool_id.as_bytes()],
+        bump,
         token::mint = usdc_mint,
         token::authority = pool_state,
     )]
@@ -63,10 +66,19 @@ pub struct MintShortSol<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64) -> Result<()> {
+pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64, min_tokens_out: u64) -> Result<()> {
     let pool = &mut ctx.accounts.pool_state;
     require!(!pool.paused, SolshortError::Paused);
     require!(usdc_amount > 0, SolshortError::AmountTooSmall);
+
+    // Rate limit check
+    let clock = Clock::get()?;
+    if pool.last_oracle_timestamp > 0 {
+        require!(
+            clock.unix_timestamp - pool.last_oracle_timestamp >= MIN_ACTION_INTERVAL_SECS,
+            SolshortError::RateLimitExceeded
+        );
+    }
 
     // 1. Get validated oracle price
     let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price)?;
@@ -81,9 +93,12 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64) ->
         .try_into()
         .map_err(|_| error!(SolshortError::MathOverflow))?;
 
-    // 3. Calculate fee
+    // 3. Calculate dynamic fee based on vault health
+    let dynamic_fee_bps = calc_dynamic_fee(
+        pool.fee_bps, pool.vault_balance, pool.circulating, pool.k, sol_price,
+    )?;
     let fee_amount = (usdc_amount as u128)
-        .checked_mul(pool.fee_bps as u128)
+        .checked_mul(dynamic_fee_bps as u128)
         .ok_or(error!(SolshortError::MathOverflow))?
         .checked_div(BPS_DENOMINATOR as u128)
         .ok_or(error!(SolshortError::MathOverflow))? as u64;
@@ -106,6 +121,7 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64) ->
         .map_err(|_| error!(SolshortError::MathOverflow))?;
 
     require!(tokens > 0, SolshortError::AmountTooSmall);
+    require!(tokens >= min_tokens_out, SolshortError::SlippageExceeded);
 
     // 5. Transfer USDC from user to vault
     token::transfer(
@@ -135,7 +151,18 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64) ->
         tokens,
     )?;
 
-    // 7. Update pool state
+    // 7. Reconcile vault balance
+    ctx.accounts.vault_usdc.reload()?;
+    let expected_vault = pool
+        .vault_balance
+        .checked_add(usdc_amount)
+        .ok_or(error!(SolshortError::MathOverflow))?;
+    require!(
+        ctx.accounts.vault_usdc.amount >= expected_vault,
+        SolshortError::InsufficientLiquidity
+    );
+
+    // 8. Update pool state (reconciled)
     pool.circulating = pool
         .circulating
         .checked_add(tokens)
@@ -144,10 +171,7 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64) ->
         .total_minted
         .checked_add(tokens)
         .ok_or(error!(SolshortError::MathOverflow))?;
-    pool.vault_balance = pool
-        .vault_balance
-        .checked_add(usdc_amount)
-        .ok_or(error!(SolshortError::MathOverflow))?;
+    pool.vault_balance = expected_vault;
     pool.total_fees_collected = pool
         .total_fees_collected
         .checked_add(fee_amount)
@@ -155,7 +179,7 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64) ->
     pool.last_oracle_price = sol_price;
     pool.last_oracle_timestamp = oracle.timestamp;
 
-    // 8. Emit event
+    // 9. Emit event
     emit!(MintEvent {
         user: ctx.accounts.user.key(),
         usdc_in: usdc_amount,

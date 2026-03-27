@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 pub mod constants;
 pub mod errors;
 pub mod events;
+pub mod fees;
 pub mod instructions;
 pub mod oracle;
 pub mod state;
@@ -19,16 +20,17 @@ pub mod solshort {
         instructions::initialize::handler(ctx, pool_id, fee_bps)
     }
 
-    pub fn mint(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64) -> Result<()> {
-        instructions::mint::handler(ctx, pool_id, usdc_amount)
+    pub fn mint(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64, min_tokens_out: u64) -> Result<()> {
+        instructions::mint::handler(ctx, pool_id, usdc_amount, min_tokens_out)
     }
 
     pub fn redeem(
         ctx: Context<RedeemShortSol>,
         pool_id: String,
         shortsol_amount: u64,
+        min_usdc_out: u64,
     ) -> Result<()> {
-        instructions::redeem::handler(ctx, pool_id, shortsol_amount)
+        instructions::redeem::handler(ctx, pool_id, shortsol_amount, min_usdc_out)
     }
 
     pub fn update_k(ctx: Context<UpdateK>, pool_id: String, new_k: u128) -> Result<()> {
@@ -49,11 +51,46 @@ pub mod solshort {
         instructions::create_metadata::handler(ctx, pool_id, name, symbol, uri)
     }
 
+    pub fn update_price(ctx: Context<UpdatePrice>, pool_id: String) -> Result<()> {
+        instructions::update_price::handler(ctx, pool_id)
+    }
+
     pub fn add_liquidity(
         ctx: Context<AddLiquidity>,
         pool_id: String,
         usdc_amount: u64,
     ) -> Result<()> {
         instructions::add_liquidity::handler(ctx, pool_id, usdc_amount)
+    }
+
+    pub fn withdraw_fees(
+        ctx: Context<WithdrawFees>,
+        pool_id: String,
+        amount: u64,
+    ) -> Result<()> {
+        instructions::withdraw_fees::handler(ctx, pool_id, amount)
+    }
+
+    pub fn remove_liquidity(
+        ctx: Context<RemoveLiquidity>,
+        pool_id: String,
+        usdc_amount: u64,
+    ) -> Result<()> {
+        instructions::remove_liquidity::handler(ctx, pool_id, usdc_amount)
+    }
+
+    pub fn transfer_authority(
+        ctx: Context<TransferAuthority>,
+        pool_id: String,
+    ) -> Result<()> {
+        instructions::transfer_authority::handler(ctx, pool_id)
+    }
+
+    pub fn update_fee(
+        ctx: Context<UpdateFee>,
+        pool_id: String,
+        new_fee_bps: u16,
+    ) -> Result<()> {
+        instructions::update_fee::handler(ctx, pool_id, new_fee_bps)
     }
 }

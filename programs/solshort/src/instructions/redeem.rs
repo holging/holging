@@ -5,6 +5,7 @@ use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use crate::constants::*;
 use crate::errors::SolshortError;
 use crate::events::{CircuitBreakerTriggered, RedeemEvent};
+use crate::fees::calc_dynamic_fee;
 use crate::oracle::get_validated_price;
 use crate::state::PoolState;
 
@@ -60,10 +61,20 @@ pub fn handler(
     ctx: Context<RedeemShortSol>,
     pool_id: String,
     shortsol_amount: u64,
+    min_usdc_out: u64,
 ) -> Result<()> {
     let pool = &mut ctx.accounts.pool_state;
     require!(!pool.paused, SolshortError::Paused);
     require!(shortsol_amount > 0, SolshortError::AmountTooSmall);
+
+    // Rate limit check
+    let clock = Clock::get()?;
+    if pool.last_oracle_timestamp > 0 {
+        require!(
+            clock.unix_timestamp - pool.last_oracle_timestamp >= MIN_ACTION_INTERVAL_SECS,
+            SolshortError::RateLimitExceeded
+        );
+    }
 
     // 1. Get validated oracle price
     let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price)?;
@@ -90,9 +101,12 @@ pub fn handler(
         .try_into()
         .map_err(|_| error!(SolshortError::MathOverflow))?;
 
-    // 4. Apply fee (bid price: user receives less)
+    // 4. Apply dynamic fee based on vault health
+    let dynamic_fee_bps = calc_dynamic_fee(
+        pool.fee_bps, pool.vault_balance, pool.circulating, pool.k, sol_price,
+    )?;
     let fee_amount = (gross_usdc as u128)
-        .checked_mul(pool.fee_bps as u128)
+        .checked_mul(dynamic_fee_bps as u128)
         .ok_or(error!(SolshortError::MathOverflow))?
         .checked_div(BPS_DENOMINATOR as u128)
         .ok_or(error!(SolshortError::MathOverflow))? as u64;
@@ -100,6 +114,8 @@ pub fn handler(
     let net_usdc = gross_usdc
         .checked_sub(fee_amount)
         .ok_or(error!(SolshortError::MathOverflow))?;
+
+    require!(net_usdc >= min_usdc_out, SolshortError::SlippageExceeded);
 
     // 5. Liquidity check
     require!(
@@ -134,7 +150,6 @@ pub fn handler(
                 .ok_or(error!(SolshortError::MathOverflow))?;
 
             if ratio_bps < MIN_VAULT_RATIO_BPS as u128 {
-                pool.paused = true;
                 emit!(CircuitBreakerTriggered {
                     vault_ratio_bps: ratio_bps as u64,
                     timestamp: oracle.timestamp,
@@ -172,7 +187,14 @@ pub fn handler(
         net_usdc,
     )?;
 
-    // 9. Update pool state
+    // 9. Reconcile vault balance
+    ctx.accounts.vault_usdc.reload()?;
+    require!(
+        ctx.accounts.vault_usdc.amount >= remaining_vault,
+        SolshortError::InsufficientLiquidity
+    );
+
+    // 10. Update pool state
     pool.circulating = remaining_circulating;
     pool.total_redeemed = pool
         .total_redeemed

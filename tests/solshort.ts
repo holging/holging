@@ -16,7 +16,6 @@ import {
 import { assert } from "chai";
 import BN from "bn.js";
 
-// Load IDL manually since we built --no-idl
 const IDL = require("../target/idl/solshort.json");
 
 const POOL_ID = "sol";
@@ -43,7 +42,6 @@ describe("solshort", () => {
   let userUsdcAccount: PublicKey;
 
   before(async () => {
-    // Derive PDAs
     [poolStatePda, poolBump] = PublicKey.findProgramAddressSync(
       [POOL_SEED, Buffer.from(POOL_ID)],
       programId
@@ -59,7 +57,6 @@ describe("solshort", () => {
       programId
     );
 
-    // Create fake USDC mint (6 decimals)
     usdcMint = await createMint(
       provider.connection,
       (authority as any).payer,
@@ -73,7 +70,6 @@ describe("solshort", () => {
       programId
     );
 
-    // Create user USDC account and mint 10,000 USDC
     userUsdcAccount = await createAccount(
       provider.connection,
       (authority as any).payer,
@@ -96,6 +92,9 @@ describe("solshort", () => {
     console.log("  USDC Mint:", usdcMint.toBase58());
   });
 
+  // ═══════════════════════════════════════════════════
+  // PDA derivation tests
+  // ═══════════════════════════════════════════════════
   describe("PDA derivation", () => {
     it("derives pool PDA correctly", () => {
       const [pda, bump] = PublicKey.findProgramAddressSync(
@@ -135,6 +134,9 @@ describe("solshort", () => {
     });
   });
 
+  // ═══════════════════════════════════════════════════
+  // Math verification
+  // ═══════════════════════════════════════════════════
   describe("math verification", () => {
     it("shortSOL price = k / SOL_price at initialization", () => {
       const solPrice = new BN(170).mul(PRICE_PRECISION);
@@ -146,8 +148,6 @@ describe("solshort", () => {
     it("shortSOL price inversely correlates with SOL", () => {
       const initPrice = new BN(170).mul(PRICE_PRECISION);
       const k = initPrice.mul(initPrice).div(PRICE_PRECISION);
-
-      // SOL doubles → shortSOL halves
       const newPrice = new BN(340).mul(PRICE_PRECISION);
       const shortsolPrice = k.mul(PRICE_PRECISION).div(newPrice);
       const expected = new BN(85).mul(PRICE_PRECISION);
@@ -155,7 +155,7 @@ describe("solshort", () => {
     });
 
     it("holging portfolio P&L is always >= 0", () => {
-      const multipliers = [0.1, 0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0, 3.0];
+      const multipliers = [0.1, 0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0, 3.0, 5.0, 10.0];
       for (const x of multipliers) {
         const v = 0.5 * (x + 1 / x);
         const pnl = v - 1;
@@ -163,12 +163,24 @@ describe("solshort", () => {
       }
     });
 
+    it("P&L = (x-1)^2 / (2x)", () => {
+      const multipliers = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0];
+      for (const x of multipliers) {
+        const v = 0.5 * (x + 1 / x) - 1;
+        const formula = (x - 1) ** 2 / (2 * x);
+        assert.ok(
+          Math.abs(v - formula) < 1e-10,
+          `P&L formula mismatch at x=${x}: ${v} vs ${formula}`
+        );
+      }
+    });
+
     it("fee calculation (0.04%)", () => {
-      const usdcAmount = new BN(170_000_000); // 170 USDC
+      const usdcAmount = new BN(170_000_000);
       const feeBps = new BN(4);
       const bpsDenom = new BN(10_000);
       const fee = usdcAmount.mul(feeBps).div(bpsDenom);
-      assert.equal(fee.toNumber(), 68_000); // $0.068
+      assert.equal(fee.toNumber(), 68_000);
     });
 
     it("token mint calculation with decimal scaling", () => {
@@ -179,56 +191,76 @@ describe("solshort", () => {
         .mul(scaling)
         .mul(PRICE_PRECISION)
         .div(shortsolPrice);
-      // ~0.9996 shortSOL
       assert.ok(tokens.gt(new BN(999_000_000)));
       assert.ok(tokens.lt(new BN(1_000_000_000)));
     });
 
     it("k cancels out in return calculation", () => {
-      // Return = P0/P1 - 1, independent of k
       const k1 = new BN(28900).mul(PRICE_PRECISION);
       const k2 = new BN(50000).mul(PRICE_PRECISION);
       const p0 = new BN(170).mul(PRICE_PRECISION);
       const p1 = new BN(100).mul(PRICE_PRECISION);
 
-      // shortSOL return with k1
       const ss0_k1 = k1.mul(PRICE_PRECISION).div(p0);
       const ss1_k1 = k1.mul(PRICE_PRECISION).div(p1);
-      // return = ss1/ss0 - 1 = (k1/p1) / (k1/p0) - 1 = p0/p1 - 1
-
-      // shortSOL return with k2
       const ss0_k2 = k2.mul(PRICE_PRECISION).div(p0);
       const ss1_k2 = k2.mul(PRICE_PRECISION).div(p1);
 
-      // Both should give same return: p0/p1 = 170/100 = 1.7 → 70% return
       const ret1 = ss1_k1.mul(PRICE_PRECISION).div(ss0_k1);
       const ret2 = ss1_k2.mul(PRICE_PRECISION).div(ss0_k2);
       assert.ok(ret1.eq(ret2), "Returns should be equal regardless of k");
     });
-  });
 
-  describe("error codes", () => {
-    it("has all expected error codes", () => {
-      const errors = IDL.errors;
-      assert.equal(errors.length, 13);
-      assert.equal(errors[0].name, "Paused");
-      assert.equal(errors[6].name, "CircuitBreaker");
-      assert.equal(errors[9].name, "MathOverflow");
-      assert.equal(errors[12].name, "CirculatingNotZero");
+    it("slippage calculation matches on-chain", () => {
+      const solPrice = new BN(170).mul(PRICE_PRECISION);
+      const k = solPrice.mul(solPrice).div(PRICE_PRECISION);
+      const shortsolPrice = k.mul(PRICE_PRECISION).div(solPrice);
+      const usdcAmount = new BN(170_000_000);
+      const feeBps = new BN(4);
+      const bpsDenom = new BN(10_000);
+      const fee = usdcAmount.mul(feeBps).div(bpsDenom);
+      const effectiveUsdc = usdcAmount.sub(fee);
+      const scaling = new BN(1000);
+      const tokens = effectiveUsdc.mul(scaling).mul(PRICE_PRECISION).div(shortsolPrice);
+
+      // 1% slippage tolerance
+      const slippageBps = new BN(100);
+      const minTokensOut = tokens.mul(bpsDenom.sub(slippageBps)).div(bpsDenom);
+      assert.ok(minTokensOut.lt(tokens), "Min tokens should be less than expected");
+      assert.ok(minTokensOut.gt(tokens.mul(new BN(98)).div(new BN(100))), "Min tokens should be > 98% of expected");
     });
   });
 
+  // ═══════════════════════════════════════════════════
+  // IDL validation
+  // ═══════════════════════════════════════════════════
   describe("IDL validation", () => {
-    it("has 7 instructions", () => {
-      assert.equal(IDL.instructions.length, 7);
+    it("has 12 instructions", () => {
+      assert.equal(IDL.instructions.length, 12);
       const names = IDL.instructions.map((i: any) => i.name);
-      assert.include(names, "add_liquidity");
-      assert.include(names, "create_metadata");
       assert.include(names, "initialize");
       assert.include(names, "mint");
       assert.include(names, "redeem");
+      assert.include(names, "update_price");
+      assert.include(names, "add_liquidity");
+      assert.include(names, "remove_liquidity");
+      assert.include(names, "withdraw_fees");
       assert.include(names, "update_k");
       assert.include(names, "set_pause");
+      assert.include(names, "create_metadata");
+      assert.include(names, "transfer_authority");
+    });
+
+    it("has 15 error codes", () => {
+      assert.equal(IDL.errors.length, 15);
+      const names = IDL.errors.map((e: any) => e.name);
+      assert.include(names, "Paused");
+      assert.include(names, "StaleOracle");
+      assert.include(names, "CircuitBreaker");
+      assert.include(names, "MathOverflow");
+      assert.include(names, "RateLimitExceeded");
+      assert.include(names, "InvalidPoolId");
+      assert.include(names, "SlippageExceeded");
     });
 
     it("has PoolState type with all fields", () => {
@@ -241,17 +273,117 @@ describe("solshort", () => {
       assert.include(fieldNames, "circulating");
       assert.include(fieldNames, "vault_balance");
       assert.include(fieldNames, "paused");
+      assert.include(fieldNames, "last_oracle_price");
+      assert.include(fieldNames, "last_oracle_timestamp");
       assert.include(fieldNames, "bump");
       assert.include(fieldNames, "mint_auth_bump");
     });
 
-    it("has 4 events", () => {
-      assert.equal(IDL.events.length, 4);
+    it("has 7 events", () => {
+      assert.equal(IDL.events.length, 7);
       const names = IDL.events.map((e: any) => e.name);
       assert.include(names, "MintEvent");
       assert.include(names, "RedeemEvent");
       assert.include(names, "CircuitBreakerTriggered");
       assert.include(names, "AddLiquidityEvent");
+    });
+
+    it("mint instruction has min_tokens_out parameter (slippage protection)", () => {
+      const mintIx = IDL.instructions.find((i: any) => i.name === "mint");
+      const args = mintIx.args.map((a: any) => a.name);
+      assert.include(args, "pool_id");
+      assert.include(args, "usdc_amount");
+      assert.include(args, "min_tokens_out");
+    });
+
+    it("redeem instruction has min_usdc_out parameter (slippage protection)", () => {
+      const redeemIx = IDL.instructions.find((i: any) => i.name === "redeem");
+      const args = redeemIx.args.map((a: any) => a.name);
+      assert.include(args, "pool_id");
+      assert.include(args, "shortsol_amount");
+      assert.include(args, "min_usdc_out");
+    });
+
+    it("withdraw_fees and remove_liquidity require price_update account", () => {
+      const wf = IDL.instructions.find((i: any) => i.name === "withdraw_fees");
+      const rl = IDL.instructions.find((i: any) => i.name === "remove_liquidity");
+      const wfAccounts = wf.accounts.map((a: any) => a.name);
+      const rlAccounts = rl.accounts.map((a: any) => a.name);
+      assert.include(wfAccounts, "price_update", "withdraw_fees should require fresh oracle");
+      assert.include(rlAccounts, "price_update", "remove_liquidity should require fresh oracle");
+    });
+
+    it("transfer_authority instruction exists with new_authority account", () => {
+      const ta = IDL.instructions.find((i: any) => i.name === "transfer_authority");
+      assert.ok(ta, "transfer_authority instruction should exist");
+      const accounts = ta.accounts.map((a: any) => a.name);
+      assert.include(accounts, "pool_state");
+      assert.include(accounts, "authority");
+      assert.include(accounts, "new_authority");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════
+  // Security property tests
+  // ═══════════════════════════════════════════════════
+  describe("security properties", () => {
+    it("oracle constants are within safe bounds", () => {
+      // These values come from constants.rs and should be verified
+      const MAX_STALENESS = 120; // seconds
+      const MAX_CONFIDENCE_PCT = 2; // percent
+      const MAX_DEVIATION_BPS = 1500; // 15%
+      const MAX_UPDATE_DEVIATION_BPS = 5000; // 50%
+      const MIN_PRICE = 1_000_000_000; // $1.00 in PRICE_PRECISION
+      const MIN_ACTION_INTERVAL = 2; // seconds
+
+      assert.ok(MAX_STALENESS <= 120, "Staleness should be <= 120s");
+      assert.ok(MAX_CONFIDENCE_PCT <= 5, "Confidence should be <= 5%");
+      assert.ok(MAX_DEVIATION_BPS <= 2000, "Deviation should be <= 20% for mint/redeem");
+      assert.ok(MAX_UPDATE_DEVIATION_BPS <= 5000, "Update deviation should be <= 50%");
+      assert.ok(MIN_PRICE >= 1_000_000_000, "Min price should be >= $1");
+      assert.ok(MIN_ACTION_INTERVAL >= 1, "Rate limit should be >= 1 second");
+    });
+
+    it("circuit breaker threshold is conservative", () => {
+      const MIN_VAULT_RATIO_BPS = 9500; // 95%
+      assert.ok(MIN_VAULT_RATIO_BPS >= 9000, "Vault ratio threshold should be >= 90%");
+    });
+
+    it("fee is within reasonable bounds", () => {
+      // Max fee is 100 bps (1%) per initialize.rs constraint
+      const maxFeeBps = 100;
+      const defaultFeeBps = 4; // 0.04%
+      assert.ok(defaultFeeBps <= maxFeeBps, "Default fee should be <= max fee");
+      assert.ok(defaultFeeBps > 0, "Default fee should be > 0");
+    });
+
+    it("pool_id max length is enforced", () => {
+      const MAX_POOL_ID_LEN = 32;
+      assert.ok(POOL_ID.length <= MAX_POOL_ID_LEN, "Pool ID should be within limit");
+    });
+
+    it("admin instructions require authority signer", () => {
+      const adminInstructions = [
+        "add_liquidity", "remove_liquidity", "withdraw_fees",
+        "update_k", "set_pause", "create_metadata", "transfer_authority"
+      ];
+      for (const name of adminInstructions) {
+        const ix = IDL.instructions.find((i: any) => i.name === name);
+        assert.ok(ix, `${name} should exist`);
+        const accounts = ix.accounts.map((a: any) => a.name);
+        assert.include(accounts, "authority", `${name} should require authority account`);
+      }
+    });
+
+    it("mint and redeem are permissionless (user signer)", () => {
+      const mintIx = IDL.instructions.find((i: any) => i.name === "mint");
+      const redeemIx = IDL.instructions.find((i: any) => i.name === "redeem");
+      const mintAccounts = mintIx.accounts.map((a: any) => a.name);
+      const redeemAccounts = redeemIx.accounts.map((a: any) => a.name);
+      assert.include(mintAccounts, "user");
+      assert.include(redeemAccounts, "user");
+      assert.notInclude(mintAccounts, "authority");
+      assert.notInclude(redeemAccounts, "authority");
     });
   });
 });

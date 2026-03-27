@@ -56,6 +56,7 @@ pub struct Initialize<'info> {
 }
 
 pub fn handler(ctx: Context<Initialize>, pool_id: String, fee_bps: u16) -> Result<()> {
+    require!(pool_id.len() <= MAX_POOL_ID_LEN, SolshortError::InvalidPoolId);
     require!(fee_bps <= 100, SolshortError::InvalidFee); // max 1%
 
     let pool_bump = ctx.bumps.pool_state;

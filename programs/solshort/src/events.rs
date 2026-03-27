@@ -34,3 +34,23 @@ pub struct AddLiquidityEvent {
     pub usdc_amount: u64,
     pub new_vault_balance: u64,
 }
+
+#[event]
+pub struct WithdrawFeesEvent {
+    pub authority: Pubkey,
+    pub amount: u64,
+    pub remaining_vault: u64,
+}
+
+#[event]
+pub struct RemoveLiquidityEvent {
+    pub authority: Pubkey,
+    pub usdc_amount: u64,
+    pub remaining_vault: u64,
+}
+
+#[event]
+pub struct TransferAuthorityEvent {
+    pub old_authority: Pubkey,
+    pub new_authority: Pubkey,
+}
