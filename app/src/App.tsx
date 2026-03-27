@@ -10,6 +10,7 @@ import { StrategyTerminal } from "./components/StrategyTerminal";
 import { RiskDashboard } from "./components/RiskDashboard";
 import { TokenHolders } from "./components/TokenHolders";
 import { StatePage } from "./components/StatePage";
+import { FaucetButton } from "./components/FaucetButton";
 import { usePool } from "./hooks/usePool";
 
 const USDC_MINT: string | null =
@@ -89,7 +90,12 @@ function App() {
           )}
         </div>
 
-        {tab === "mint" && <MintForm usdcMint={USDC_MINT} />}
+        {tab === "mint" && (
+          <>
+            <FaucetButton />
+            <MintForm usdcMint={USDC_MINT} />
+          </>
+        )}
         {tab === "redeem" && <RedeemForm usdcMint={USDC_MINT} />}
         {tab === "holging" && <StrategyTerminal />}
         {tab === "holders" && <TokenHolders />}
