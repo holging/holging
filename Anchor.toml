@@ -5,10 +5,11 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
-[programs.localnet]
+[programs.devnet]
+faucet = "BqisdDoAVUH8KH2uAspUfCYSiiAwdLvuEepk1R8A7hGn"
 solshort = "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX"
 
-[programs.devnet]
+[programs.localnet]
 solshort = "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX"
 
 [registry]
@@ -23,3 +24,5 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
 
 [test]
 startup_wait = 5000
+shutdown_wait = 2000
+upgradeable = false
