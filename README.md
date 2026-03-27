@@ -43,20 +43,25 @@ Break-even: SOL moves ±4% (to cover 0.08% roundtrip fee).
 │  Frontend (React 19 + Vite 7)           │
 │  ├── Mint / Redeem forms                │
 │  ├── Strategy Terminal (V-curve chart)  │
-│  ├── Risk Dashboard (admin)             │
-│  └── Token Holders view                 │
+│  ├── Token Holders view                 │
+│  ├── State (public vault health)        │
+│  └── Risk Dashboard (admin)             │
 ├─────────────────────────────────────────┤
 │  Pyth Network (pull oracle, 400ms)      │
 ├─────────────────────────────────────────┤
 │  Solana Program (Anchor 0.32.1, Rust)   │
-│  ├── initialize    — pool setup         │
-│  ├── mint          — USDC → shortSOL    │
-│  ├── redeem        — shortSOL → USDC    │
-│  ├── update_price  — refresh oracle     │
-│  ├── add_liquidity — vault topup        │
-│  ├── update_k      — recalibrate        │
-│  ├── set_pause     — emergency halt     │
-│  └── create_metadata — SPL metadata     │
+│  ├── initialize       — pool setup      │
+│  ├── mint             — USDC → shortSOL │
+│  ├── redeem           — shortSOL → USDC │
+│  ├── update_price     — refresh oracle  │
+│  ├── add_liquidity    — vault topup     │
+│  ├── remove_liquidity — vault withdraw  │
+│  ├── withdraw_fees    — fee collection  │
+│  ├── update_k         — recalibrate     │
+│  ├── update_fee       — adjust fee bps  │
+│  ├── set_pause        — emergency halt  │
+│  ├── create_metadata  — SPL metadata    │
+│  └── transfer_authority — admin handoff │
 └─────────────────────────────────────────┘
 ```
 

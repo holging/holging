@@ -110,23 +110,26 @@ SOL должен сдвинуться на ±4% для прибыли после
 ## 5. Что построено
 
 ### Смарт-контракт (Solana / Anchor / Rust)
-- **7 инструкций**: initialize, mint, redeem, add_liquidity, update_k, set_pause, create_metadata
-- **13 кодов ошибок** с полной обработкой
-- **4 типа событий** для аналитики
+- **12 инструкций**: initialize, mint, redeem, add_liquidity, remove_liquidity, withdraw_fees, update_k, update_fee, update_price, set_pause, create_metadata, transfer_authority
+- **15 кодов ошибок** с полной обработкой
+- **7 типов событий** для аналитики
+- **Динамические комиссии** (5–50 bps в зависимости от vault ratio)
+- **Формальная верификация** — 8 теорем доказаны в Lean 4 (Mathlib)
 - **Checked arithmetic** — защита от overflow во всех операциях
 - **Задеплоен на Devnet**: `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
 
 ### Фронтенд (React / TypeScript / Vite)
-- **4 таба**: Mint, Redeem, Holging Calculator, Risk Dashboard
-- **Holging Calculator** — интерактивный симулятор портфеля с 8 пресетами
+- **6 табов**: Mint, Redeem, Holging, Holders, State, Risk Dashboard
+- **State** — публичный дашборд состояния vault (vault ratio, obligations, circuit breaker)
+- **Holging** — интерактивный симулятор портфеля со стратегией 50/50
 - **Risk Dashboard** (admin-only) — стресс-тест, liquidity calculator, vault metrics
 - **Real-time** цены SOL через Pyth oracle
 - **Multi-wallet** поддержка (Phantom, Solflare)
-- **Задеплоен на Vercel**: работающее приложение
+- **Задеплоен на Netlify**: работающее приложение
 
 ### Безопасность оракула (Pyth Network)
 4 уровня валидации:
-1. **Staleness**: цена не старше 30 секунд
+1. **Staleness**: цена не старше 120 секунд (devnet)
 2. **Confidence**: доверительный интервал < 2%
 3. **Deviation**: отклонение от кэша < 15%
 4. **Floor**: SOL > $1.00
@@ -158,12 +161,13 @@ SOL должен сдвинуться на ±4% для прибыли после
 
 ```
 Blockchain:    Solana (400ms finality, $0.001 per tx)
-Smart Contract: Anchor 0.32.1 (Rust)
+Smart Contract: Anchor 0.32.1 (Rust), 12 инструкций
 Oracle:        Pyth Network (pull-based, 400ms latency)
 Frontend:      React 19 + TypeScript 5.9 + Vite 7
 Wallet:        Solana Wallet Adapter
 Token:         SPL Token + Metaplex metadata
-Hosting:       Vercel (frontend)
+Верификация:   Lean 4 + Mathlib (8 теорем)
+Hosting:       Netlify (frontend)
 Mobile:        Solafon Mini App (в разработке)
 ```
 
@@ -224,11 +228,12 @@ L_required = TVL / (1 − d)
 ## 10. Roadmap
 
 ### Phase 1: Devnet MVP ✅ (текущая)
-- ✅ Anchor program: все инструкции
+- ✅ Anchor program: 12 инструкций
 - ✅ Pyth devnet integration
-- ✅ Frontend: mint, redeem, holging calculator
-- ✅ Risk Dashboard с admin-контролем
-- ✅ Деплой на Vercel
+- ✅ Динамические комиссии (5–50 bps)
+- ✅ Frontend: Mint, Redeem, Holging, Holders, State, Risk Dashboard
+- ✅ Lean 4 формальная верификация (8 теорем)
+- ✅ Деплой на Netlify
 
 ### Phase 2: Testnet + Audit
 - [ ] Security audit (OtterSec / Neodyme)
