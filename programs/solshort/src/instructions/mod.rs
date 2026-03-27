@@ -10,6 +10,7 @@ pub mod withdraw_fees;
 pub mod remove_liquidity;
 pub mod transfer_authority;
 pub mod update_fee;
+pub mod accrue_funding;
 
 // Glob re-exports needed by Anchor's #[program] macro
 #[allow(ambiguous_glob_reexports)]
@@ -36,3 +37,5 @@ pub use remove_liquidity::*;
 pub use transfer_authority::*;
 #[allow(ambiguous_glob_reexports)]
 pub use update_fee::*;
+#[allow(ambiguous_glob_reexports)]
+pub use accrue_funding::*;

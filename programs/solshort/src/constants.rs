@@ -1,6 +1,15 @@
 /// Internal price precision (1e9) for fixed-point arithmetic
 pub const PRICE_PRECISION: u64 = 1_000_000_000;
 
+/// Seconds in a day
+pub const SECS_PER_DAY: u64 = 86_400;
+
+/// Max funding rate: 100 bps/day = 1%/day
+pub const MAX_FUNDING_RATE_BPS: u16 = 100;
+
+/// PDA seed for FundingConfig
+pub const FUNDING_SEED: &[u8] = b"funding";
+
 /// USDC has 6 decimals
 pub const USDC_DECIMALS: u8 = 6;
 

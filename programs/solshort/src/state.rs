@@ -1,6 +1,20 @@
 use anchor_lang::prelude::*;
 
 #[account]
+pub struct FundingConfig {
+    /// Funding rate in basis points per day (e.g. 10 = 0.10%/day)
+    pub rate_bps: u16,
+    /// Unix timestamp of last accrual
+    pub last_funding_at: i64,
+    /// PDA bump
+    pub bump: u8,
+}
+
+impl FundingConfig {
+    pub const LEN: usize = 8 + 2 + 8 + 1;
+}
+
+#[account]
 #[derive(InitSpace)]
 pub struct PoolState {
     /// Admin authority

@@ -93,4 +93,24 @@ pub mod solshort {
     ) -> Result<()> {
         instructions::update_fee::handler(ctx, pool_id, new_fee_bps)
     }
+
+    pub fn initialize_funding(
+        ctx: Context<InitializeFunding>,
+        pool_id: String,
+        rate_bps: u16,
+    ) -> Result<()> {
+        instructions::accrue_funding::initialize_funding_handler(ctx, pool_id, rate_bps)
+    }
+
+    pub fn accrue_funding(ctx: Context<AccrueFunding>, pool_id: String) -> Result<()> {
+        instructions::accrue_funding::accrue_funding_handler(ctx, pool_id)
+    }
+
+    pub fn update_funding_rate(
+        ctx: Context<UpdateFundingRate>,
+        pool_id: String,
+        new_rate_bps: u16,
+    ) -> Result<()> {
+        instructions::accrue_funding::update_funding_rate_handler(ctx, pool_id, new_rate_bps)
+    }
 }

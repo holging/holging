@@ -54,3 +54,12 @@ pub struct TransferAuthorityEvent {
     pub old_authority: Pubkey,
     pub new_authority: Pubkey,
 }
+
+#[event]
+pub struct FundingAccruedEvent {
+    pub k_before: u128,
+    pub k_after: u128,
+    pub elapsed_secs: i64,
+    pub rate_bps: u16,
+    pub timestamp: i64,
+}
