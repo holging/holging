@@ -13,7 +13,7 @@ use instructions::*;
 declare_id!("CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX");
 
 #[program]
-pub mod solshort {
+pub mod holging {
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>, pool_id: String, fee_bps: u16) -> Result<()> {

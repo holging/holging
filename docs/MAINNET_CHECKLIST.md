@@ -1,4 +1,4 @@
-# SolShort — Mainnet Readiness Checklist
+# Holging — Mainnet Readiness Checklist
 
 > Последнее обновление: 2026-03-28
 > Программа: `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
@@ -6,7 +6,7 @@
 
 ## Обзор
 
-Этот документ содержит полный список задач, которые необходимо выполнить перед запуском SolShort на mainnet. Каждый item привязан к конкретным файлам и строкам кода.
+Этот документ содержит полный список задач, которые необходимо выполнить перед запуском Holging на mainnet. Каждый item привязан к конкретным файлам и строкам кода.
 
 **Статистика:**
 - **P0 (Must-have):** 8 items — блокируют launch (3 выполнено)
@@ -50,7 +50,7 @@
 - **Category:** Security
 - **File(s):** `programs/solshort/src/instructions/initialize.rs:46`
 - **What:** Добавить constraint `address = <MAINNET_USDC_MINT>` на аккаунт `usdc_mint` в `Initialize` struct. Scope: ТОЛЬКО initialize.rs — в mint.rs/redeem.rs vault PDA seeds включают `usdc_mint.key()`, что уже привязывает vault к конкретному mint.
-- **Why:** Без валидации можно инициализировать пул с фейковым токеном вместо USDC. Vault будет создан для этого токена, и все последующие операции будут работать с ним. Хотя mint/redeem защищены vault PDA seeds, сам факт создания пула с произвольным mint открывает вектор атаки (social engineering — пользователь видит "SolShort pool" но vault содержит не USDC).
+- **Why:** Без валидации можно инициализировать пул с фейковым токеном вместо USDC. Vault будет создан для этого токена, и все последующие операции будут работать с ним. Хотя mint/redeem защищены vault PDA seeds, сам факт создания пула с произвольным mint открывает вектор атаки (social engineering — пользователь видит "Holging pool" но vault содержит не USDC).
 - **Effort:** 1h
 - **Done when:** В `Initialize` struct добавлен constraint `#[account(address = MAINNET_USDC_MINT)]` на `usdc_mint`. Константа `MAINNET_USDC_MINT` добавлена в constants.rs. Вариант: параметр через feature flag для devnet/mainnet.
 

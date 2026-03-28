@@ -1,7 +1,7 @@
 {
-  "name": "solshort-solafon",
+  "name": "holging-solafon",
   "version": "0.1.0",
-  "description": "SolShort Mini App shell for Solafon platform",
+  "description": "Holging Mini App shell for Solafon platform",
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc"

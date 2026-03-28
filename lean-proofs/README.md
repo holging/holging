@@ -1,6 +1,6 @@
-# SolShort — Lean 4 Formal Proofs
+# Holging — Lean 4 Formal Proofs
 
-Machine-checked proofs of the mathematical properties underlying the SolShort protocol, using Lean 4 + Mathlib.
+Machine-checked proofs of the mathematical properties underlying the Holging protocol, using Lean 4 + Mathlib.
 
 ## What is proven
 

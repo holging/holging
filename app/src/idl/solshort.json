@@ -1,10 +1,10 @@
 {
   "address": "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX",
   "metadata": {
-    "name": "solshort",
+    "name": "holging",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "SolShort — Tokenized Hedge Protocol on Solana"
+    "description": "Holging — Tokenized Hedge Protocol on Solana"
   },
   "instructions": [
     {

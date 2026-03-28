@@ -1,12 +1,61 @@
 {
   "address": "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX",
   "metadata": {
-    "name": "solshort",
+    "name": "holging",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "SolShort — Tokenized Hedge Protocol on Solana"
+    "description": "Holging — Tokenized Hedge Protocol on Solana"
   },
   "instructions": [
+    {
+      "name": "accept_authority",
+      "discriminator": [
+        107,
+        86,
+        198,
+        91,
+        33,
+        12,
+        107,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "new_authority",
+          "docs": [
+            "Должен совпадать с pool_state.pending_authority"
+          ],
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        }
+      ]
+    },
     {
       "name": "accrue_funding",
       "discriminator": [
@@ -64,6 +113,12 @@
               }
             ]
           }
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "Oracle price — для расчёта freed_usdc и распределения LP fees"
+          ]
         }
       ],
       "args": [
@@ -109,26 +164,208 @@
         },
         {
           "name": "vault_usdc",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_mint",
+          "docs": [
+            "LP token mint (PDA, создан через initialize_lp)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  112,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_position",
+          "docs": [
+            "Позиция LP провайдера — создаётся при первом депозите"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  112,
+                  95,
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              },
+              {
+                "kind": "account",
+                "path": "lp_provider"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_provider_lp_ata",
+          "docs": [
+            "ATA LP провайдера для LP токенов — создаётся если не существует"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "lp_provider"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lp_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
         },
         {
           "name": "usdc_mint"
         },
         {
-          "name": "authority_usdc",
+          "name": "lp_provider_usdc",
           "writable": true
         },
         {
-          "name": "authority",
+          "name": "lp_provider",
           "writable": true,
-          "signer": true,
-          "relations": [
-            "pool_state"
-          ]
+          "signer": true
         },
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -139,6 +376,128 @@
         {
           "name": "usdc_amount",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_lp_fees",
+      "discriminator": [
+        72,
+        86,
+        212,
+        142,
+        60,
+        38,
+        74,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_position",
+          "docs": [
+            "Позиция LP провайдера"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  112,
+                  95,
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              },
+              {
+                "kind": "account",
+                "path": "lp_provider"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "lp_provider_usdc",
+          "docs": [
+            "Куда перевести USDC fees"
+          ],
+          "writable": true
+        },
+        {
+          "name": "lp_provider",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
         }
       ]
     },
@@ -502,6 +861,150 @@
       ]
     },
     {
+      "name": "initialize_lp",
+      "discriminator": [
+        110,
+        252,
+        116,
+        251,
+        81,
+        191,
+        57,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  112,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "min_lp_deposit",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "migrate_pool",
+      "discriminator": [
+        55,
+        170,
+        171,
+        123,
+        210,
+        69,
+        39,
+        172
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "docs": [
+            "Не используем Account<PoolState> т.к. аккаунт может быть старого размера."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "name": "mint",
       "discriminator": [
         51,
@@ -617,6 +1120,35 @@
           "signer": true
         },
         {
+          "name": "funding_config",
+          "docs": [
+            "Опциональный FundingConfig — если передан, фандинг применяется инлайн",
+            "перед вычислением shortsol_price. Если не передан, k остаётся текущим."
+          ],
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -727,6 +1259,35 @@
           "signer": true
         },
         {
+          "name": "funding_config",
+          "docs": [
+            "Опциональный FundingConfig — если передан, фандинг применяется инлайн",
+            "перед вычислением shortsol_price. Если не передан, k остаётся текущим."
+          ],
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -786,29 +1347,127 @@
         },
         {
           "name": "vault_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_mint",
+          "docs": [
+            "LP token mint (PDA)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  112,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_position",
+          "docs": [
+            "Позиция LP провайдера (PDA seeds: lp_position + pool + lp_provider)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  112,
+                  95,
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_state"
+              },
+              {
+                "kind": "account",
+                "path": "lp_provider"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_provider_lp_ata",
+          "docs": [
+            "ATA LP провайдера с LP токенами (для burn)"
+          ],
           "writable": true
         },
         {
           "name": "usdc_mint"
         },
         {
-          "name": "price_update"
-        },
-        {
-          "name": "authority_usdc",
+          "name": "lp_provider_usdc",
+          "docs": [
+            "Куда вернуть USDC"
+          ],
           "writable": true
         },
         {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "pool_state"
+          "name": "price_update",
+          "docs": [
+            "Для проверки здоровья vault после вывода"
           ]
+        },
+        {
+          "name": "lp_provider",
+          "writable": true,
+          "signer": true
         },
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -817,7 +1476,7 @@
           "type": "string"
         },
         {
-          "name": "usdc_amount",
+          "name": "lp_shares_amount",
           "type": "u64"
         }
       ]
@@ -1107,6 +1766,59 @@
       ]
     },
     {
+      "name": "update_min_lp_deposit",
+      "discriminator": [
+        4,
+        105,
+        162,
+        171,
+        24,
+        149,
+        170,
+        248
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "new_min_lp_deposit",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "update_price",
       "discriminator": [
         61,
@@ -1247,6 +1959,19 @@
       ]
     },
     {
+      "name": "LpPosition",
+      "discriminator": [
+        105,
+        241,
+        37,
+        200,
+        224,
+        2,
+        252,
+        90
+      ]
+    },
+    {
       "name": "PoolState",
       "discriminator": [
         247,
@@ -1314,6 +2039,58 @@
       ]
     },
     {
+      "name": "FundingDistributedEvent",
+      "discriminator": [
+        74,
+        0,
+        165,
+        161,
+        16,
+        206,
+        160,
+        192
+      ]
+    },
+    {
+      "name": "LpDepositEvent",
+      "discriminator": [
+        43,
+        162,
+        60,
+        89,
+        208,
+        107,
+        75,
+        87
+      ]
+    },
+    {
+      "name": "LpFeeClaimedEvent",
+      "discriminator": [
+        253,
+        11,
+        224,
+        207,
+        175,
+        171,
+        31,
+        186
+      ]
+    },
+    {
+      "name": "LpWithdrawEvent",
+      "discriminator": [
+        30,
+        31,
+        155,
+        217,
+        163,
+        187,
+        71,
+        145
+      ]
+    },
+    {
       "name": "MintEvent",
       "discriminator": [
         197,
@@ -1324,6 +2101,32 @@
         164,
         95,
         16
+      ]
+    },
+    {
+      "name": "PauseEvent",
+      "discriminator": [
+        32,
+        51,
+        61,
+        169,
+        156,
+        104,
+        130,
+        43
+      ]
+    },
+    {
+      "name": "ProposeAuthorityEvent",
+      "discriminator": [
+        37,
+        127,
+        193,
+        206,
+        161,
+        211,
+        131,
+        87
       ]
     },
     {
@@ -1363,6 +2166,32 @@
         94,
         39,
         142
+      ]
+    },
+    {
+      "name": "UpdateFeeEvent",
+      "discriminator": [
+        79,
+        79,
+        188,
+        14,
+        247,
+        41,
+        59,
+        187
+      ]
+    },
+    {
+      "name": "UpdateKEvent",
+      "discriminator": [
+        36,
+        131,
+        80,
+        42,
+        237,
+        168,
+        72,
+        150
       ]
     },
     {
@@ -1454,6 +2283,31 @@
       "code": 6014,
       "name": "SlippageExceeded",
       "msg": "Slippage tolerance exceeded"
+    },
+    {
+      "code": 6015,
+      "name": "NoPendingAuthority",
+      "msg": "No pending authority — call transfer_authority first"
+    },
+    {
+      "code": 6016,
+      "name": "BelowMinLpDeposit",
+      "msg": "Deposit below minimum LP amount"
+    },
+    {
+      "code": 6017,
+      "name": "LpNotInitialized",
+      "msg": "LP system not initialized — call initialize_lp first"
+    },
+    {
+      "code": 6018,
+      "name": "NoFeesToClaim",
+      "msg": "No fees to claim"
+    },
+    {
+      "code": 6019,
+      "name": "InsufficientLpShares",
+      "msg": "Insufficient LP shares"
     }
   ],
   "types": [
@@ -1551,6 +2405,168 @@
       }
     },
     {
+      "name": "FundingDistributedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "freed_usdc",
+            "type": "u64"
+          },
+          {
+            "name": "fee_per_share_delta",
+            "type": "u128"
+          },
+          {
+            "name": "k_before",
+            "type": "u128"
+          },
+          {
+            "name": "k_after",
+            "type": "u128"
+          },
+          {
+            "name": "sol_price",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LpDepositEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lp_provider",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_amount",
+            "type": "u64"
+          },
+          {
+            "name": "lp_shares_minted",
+            "type": "u64"
+          },
+          {
+            "name": "new_lp_total_supply",
+            "type": "u64"
+          },
+          {
+            "name": "new_lp_principal",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LpFeeClaimedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lp_owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_claimed",
+            "type": "u64"
+          },
+          {
+            "name": "fee_per_share_at_claim",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LpPosition",
+      "docs": [
+        "Позиция LP провайдера в конкретном пуле.",
+        "PDA seeds: [\"lp_position\", pool_state, owner]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "Владелец позиции"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "docs": [
+              "Пул к которому привязана позиция"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "lp_shares",
+            "docs": [
+              "Количество LP токенов у данного провайдера"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_per_share_checkpoint",
+            "docs": [
+              "Снимок fee_per_share_accumulated на момент последнего settle"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "pending_fees",
+            "docs": [
+              "Начисленные но ещё не claimed USDC fees"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LpWithdrawEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lp_provider",
+            "type": "pubkey"
+          },
+          {
+            "name": "lp_shares_burned",
+            "type": "u64"
+          },
+          {
+            "name": "usdc_returned",
+            "type": "u64"
+          },
+          {
+            "name": "new_lp_total_supply",
+            "type": "u64"
+          },
+          {
+            "name": "new_lp_principal",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "MintEvent",
       "type": {
         "kind": "struct",
@@ -1582,6 +2598,22 @@
           {
             "name": "timestamp",
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PauseEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
           }
         ]
       }
@@ -1695,6 +2727,56 @@
               "Mint authority bump seed"
             ],
             "type": "u8"
+          },
+          {
+            "name": "pending_authority",
+            "docs": [
+              "Pending authority for two-step transfer (default = нет pending)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "lp_mint",
+            "docs": [
+              "LP token SPL mint PDA ([\"lp_mint\", pool_state])"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "lp_total_supply",
+            "docs": [
+              "Зеркало lp_mint.supply — синхронизируется через reload после mint/burn"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_per_share_accumulated",
+            "docs": [
+              "Глобальный аккумулятор fees per LP share (scaled × SHARE_PRECISION = 1e12)",
+              "Растёт при каждом mint/redeem/accrue_funding"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "lp_principal",
+            "docs": [
+              "Сумма USDC внесённая LP провайдерами (principal, без накопленных fees)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "min_lp_deposit",
+            "docs": [
+              "Минимальный депозит LP в USDC base units"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_lp_fees_pending",
+            "docs": [
+              "Суммарные pending fees всех LP (для защиты admin withdraw_fees)"
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -1808,6 +2890,22 @@
       }
     },
     {
+      "name": "ProposeAuthorityEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "current_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposed_authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
       "name": "RedeemEvent",
       "type": {
         "kind": "struct",
@@ -1874,6 +2972,42 @@
           },
           {
             "name": "new_authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdateFeeEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "old_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "new_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdateKEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "new_k",
+            "type": "u128"
+          },
+          {
+            "name": "authority",
             "type": "pubkey"
           }
         ]

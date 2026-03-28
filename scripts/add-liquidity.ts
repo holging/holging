@@ -1,5 +1,5 @@
 /**
- * Add USDC liquidity to the SolShort vault.
+ * Add USDC liquidity to the Holging vault.
  *
  * Usage:
  *   npx ts-node --compiler-options '{"types":["node"],"lib":["es2015"],"module":"commonjs","target":"es6","esModuleInterop":true}' scripts/add-liquidity.ts <USDC_AMOUNT>

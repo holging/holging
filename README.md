@@ -1,6 +1,6 @@
-# SolShort — Tokenized Inverse Exposure on Solana
+# Holging — Tokenized Inverse Exposure on Solana
 
-SolShort lets you short SOL with a single click. Deposit USDC, receive **shortSOL** — an SPL token whose price moves inversely to SOL using a multiplicative (1/x) model with zero volatility decay, zero path dependency, and zero liquidation risk.
+Holging lets you short SOL with a single click. Deposit USDC, receive **shortSOL** — an SPL token whose price moves inversely to SOL using a multiplicative (1/x) model with zero volatility decay, zero path dependency, and zero liquidation risk.
 
 **Live demo:** [solshort.netlify.app](https://solshort.netlify.app)
 **Program ID:** `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
@@ -172,7 +172,7 @@ Open [localhost:5173](http://localhost:5173), connect wallet, and mint shortSOL.
 
 ## Key Differences vs Competitors
 
-| | SolShort | Perp DEX (Drift, Jupiter) | Leveraged Tokens |
+| | Holging | Perp DEX (Drift, Jupiter) | Leveraged Tokens |
 |---|---------|--------------------------|-----------------|
 | Margin/Liquidation | None | Yes | Partial |
 | Volatility Decay | None | None (funding) | Yes |

@@ -1,8 +1,8 @@
-# SolShort — Mathematical Architecture
+# Holging — Mathematical Architecture
 
 ## Overview
 
-SolShort is a tokenized inverse-exposure protocol on Solana. Users deposit USDC to mint **shortSOL** tokens whose value moves inversely to SOL price. The core innovation is the **holging** strategy — a 50/50 portfolio of SOL + shortSOL that is mathematically guaranteed to be profitable regardless of price direction.
+Holging is a tokenized inverse-exposure protocol on Solana. Users deposit USDC to mint **shortSOL** tokens whose value moves inversely to SOL price. The core innovation is the **holging** strategy — a 50/50 portfolio of SOL + shortSOL that is mathematically guaranteed to be profitable regardless of price direction.
 
 **Program ID:** `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
 **Network:** Devnet

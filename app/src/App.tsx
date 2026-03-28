@@ -46,7 +46,7 @@ function App() {
     <div className="app">
       <header>
         <div className="header-left">
-          <h1>SolShort</h1>
+          <h1>Holging</h1>
           <span className="tagline">Tokenized Hedge Protocol</span>
         </div>
         <WalletMultiButton />
@@ -136,7 +136,7 @@ function App() {
       </main>
 
       <footer>
-        <p>SolShort Protocol - Devnet</p>
+        <p>Holging Protocol - Devnet</p>
       </footer>
     </div>
   );

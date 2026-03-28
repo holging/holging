@@ -1,4 +1,4 @@
-# SolShort — Investor-Ready Business Analysis
+# Holging — Investor-Ready Business Analysis
 
 > Generated: 2026-03-28 | Sources: constants.rs, fees.rs, SOLSHORT_MATH.md, PITCH_EN.md
 > All numbers derived from on-chain protocol constants unless otherwise noted.
@@ -7,13 +7,13 @@
 
 ## 1. Executive Summary
 
-SolShort is a tokenized inverse-exposure protocol on Solana that issues **shortSOL** — an SPL token priced at `k / SOL_price` — giving holders perpetual, liquidation-free short exposure to SOL without margin, funding rate payments, or daily rebalancing. The protocol's **Holging strategy** (50% SOL + 50% shortSOL) is mathematically guaranteed by the AM-GM inequality to be profitable in *any* price direction, functioning as a perpetual straddle with zero theta decay and zero premium. Revenue flows from a 4 bps/side base fee (dynamic up to 80 bps under vault stress) and a 10 bps/day k-decay funding rate (~30.6% annualised compound), which together generate LP APY of **37–40%** across conservative-to-aggressive volume scenarios. With no direct competitor implementing a multiplicative 1/x inverse token on Solana (verified across 5,400+ Colosseum projects), SolShort targets the $2B Solana perps market as the "ProShares Short S&P 500 for crypto."
+Holging is a tokenized inverse-exposure protocol on Solana that issues **shortSOL** — an SPL token priced at `k / SOL_price` — giving holders perpetual, liquidation-free short exposure to SOL without margin, funding rate payments, or daily rebalancing. The protocol's **Holging strategy** (50% SOL + 50% shortSOL) is mathematically guaranteed by the AM-GM inequality to be profitable in *any* price direction, functioning as a perpetual straddle with zero theta decay and zero premium. Revenue flows from a 4 bps/side base fee (dynamic up to 80 bps under vault stress) and a 10 bps/day k-decay funding rate (~30.6% annualised compound), which together generate LP APY of **37–40%** across conservative-to-aggressive volume scenarios. With no direct competitor implementing a multiplicative 1/x inverse token on Solana (verified across 5,400+ Colosseum projects), Holging targets the $2B Solana perps market as the "ProShares Short S&P 500 for crypto."
 
 ---
 
 ## 2. Product Overview
 
-### What SolShort Does
+### What Holging Does
 
 Users deposit USDC into the protocol and receive **shortSOL** tokens. The token price is defined by the invariant:
 
@@ -57,7 +57,7 @@ where `x = P(t) / P(0)` is the SOL price multiplier. The portfolio is **delta-ne
 
 ### Inverse Exposure Without Liquidation
 
-Unlike perpetual futures or margin accounts, SolShort holders:
+Unlike perpetual futures or margin accounts, Holging holders:
 - Never post collateral or face margin calls
 - Never pay funding rates (they *receive* inverse exposure, the vault absorbs the funding cost)
 - Hold a standard SPL token storable in any Solana wallet
@@ -146,7 +146,7 @@ From `fees.rs` `accumulate_fee()` and `settle_lp_fees()`:
 
 ### Key Insight
 
-Funding APY (36.5%) dominates across all scenarios — it is a **floor yield** independent of volume, driven purely by the 10 bps/day k-decay rate. Fee APY is volume-driven upside. This makes SolShort's LP proposition unusual: even with zero trading volume, LPs earn ~36.5% APY from the funding mechanism.
+Funding APY (36.5%) dominates across all scenarios — it is a **floor yield** independent of volume, driven purely by the 10 bps/day k-decay rate. Fee APY is volume-driven upside. This makes Holging's LP proposition unusual: even with zero trading volume, LPs earn ~36.5% APY from the funding mechanism.
 
 **Important caveat**: Funding APY assumes the vault is the primary beneficiary of k-decay. In practice, this manifests as reduced shortSOL obligations over time — LPs withdrawing after 1 year receive more USDC per share than deposited, reflecting the accumulated funding surplus.
 
@@ -166,7 +166,7 @@ Under moderate stress, higher fees dramatically amplify LP returns — creating 
 
 | Protocol | Mechanism | Liquidation Risk | Fees (roundtrip) | Composability | Volatility Decay | Oracle |
 |---------|-----------|-----------------|-----------------|---------------|-----------------|--------|
-| **SolShort** | 1/x inverse token (k/P) | **None** | **0.04–1.60%** (dynamic) | **SPL token — full DeFi composability** | **None** | Pyth (pull, 400ms) |
+| **Holging** | 1/x inverse token (k/P) | **None** | **0.04–1.60%** (dynamic) | **SPL token — full DeFi composability** | **None** | Pyth (pull, 400ms) |
 | Drift Protocol | Perpetual futures (vAMM) | Yes — margin + liquidation | 0.10% taker + funding rate | Position NFT (limited) | None | Pyth + Switchboard |
 | Jupiter Perps | Perpetual futures (JLP pool) | Yes — margin + liquidation | 0.06–0.10% + variable funding | Position (not token) | None | Pyth |
 | Inverse Finance (Ethereum) | Inverse synths (DOLA-backed) | Yes — via bad debt events | 0.30–0.50% | ERC-20 (limited cross-chain) | Partial | Chainlink |
@@ -184,7 +184,7 @@ Under moderate stress, higher fees dramatically amplify LP returns — creating 
 
 ### vs Ethena (closest model analogy)
 
-Ethena generates yield by delta-hedging stETH with ETH short perps, earning the funding rate spread (~15–25% APY). SolShort inverts this: the *vault* collects the funding rate (k-decay 30.6%/yr) while users hold tokenized inverse exposure. SolShort is conceptually "Ethena's yield source as a user-facing token."
+Ethena generates yield by delta-hedging stETH with ETH short perps, earning the funding rate spread (~15–25% APY). Holging inverts this: the *vault* collects the funding rate (k-decay 30.6%/yr) while users hold tokenized inverse exposure. Holging is conceptually "Ethena's yield source as a user-facing token."
 
 ---
 
@@ -213,7 +213,7 @@ At $50M TVL and $5M daily volume:
 
 ### Competitive Gap
 
-The closure of Friktion (Solana structured products, $200M+ TVL at peak) left the niche empty. Reflect Protocol won Colosseum Grand Prize ($50K) for delta-neutral strategy using perps + LSTs — but requires active rebalancing and is inaccessible to retail. SolShort fills the gap: same economic outcome, one token, one click.
+The closure of Friktion (Solana structured products, $200M+ TVL at peak) left the niche empty. Reflect Protocol won Colosseum Grand Prize ($50K) for delta-neutral strategy using perps + LSTs — but requires active rebalancing and is inaccessible to retail. Holging fills the gap: same economic outcome, one token, one click.
 
 ---
 
@@ -265,7 +265,7 @@ The vault must be overcollateralized *before* users can mint. With $500K seed ro
 - shortSOL may be classified as a derivative in certain jurisdictions
 - No KYC/AML in current implementation; permissionless protocol
 - $50K legal budget in seed allocation for regulatory framework analysis
-- Precedent: Ethena (USDe) operates globally as a synthetic stable; SolShort is analogous
+- Precedent: Ethena (USDe) operates globally as a synthetic stable; Holging is analogous
 
 ### 7.6 Economic Model Assumptions
 
@@ -350,4 +350,4 @@ Figures saved to: `.omc/scientist/figures/`
 
 ---
 
-*Analysis performed by Scientist agent | SolShort Protocol | 2026-03-28*
+*Analysis performed by Scientist agent | Holging Protocol | 2026-03-28*

@@ -1,4 +1,4 @@
-# SolShort — Investor Pitch
+# Holging — Investor Pitch
 
 ## One-liner
 **Inverse ETF for Solana.** One token, one click, zero liquidations.
@@ -44,7 +44,7 @@ P&L = (x - 1)² / (2x) ≥ 0    for any x > 0
 
 *Source: Colosseum Copilot, 5,400+ Solana projects analyzed*
 
-| Project | Prizes | Approach | vs SolShort |
+| Project | Prizes | Approach | vs Holging |
 |---------|--------|----------|-------------|
 | **Reflect Protocol** | Grand Prize $50K, Accelerator C2 | Delta-neutral via LST + perps | Complex, requires rebalancing |
 | **Squeeze** | 1st DeFi $25K | Leveraged long/short via lending | Launchpad, not inverse token |
@@ -52,7 +52,7 @@ P&L = (x - 1)² / (2x) ≥ 0    for any x > 0
 | **Hedge Fun** | Cypherpunk 2025 | Prediction market hedging | Not tokenized |
 | **Solistic Finance** | Breakout 2025 | Synthetic assets (stocks, RWA) | Broad scope, not specialized |
 
-**No project in 5,400+ implements a 1/x inverse token.** Reflect (closest competitor, $50K Grand Prize) uses complex delta-neutral strategy with perps and rebalancing. SolShort = one token, one formula, zero maintenance.
+**No project in 5,400+ implements a 1/x inverse token.** Reflect (closest competitor, $50K Grand Prize) uses complex delta-neutral strategy with perps and rebalancing. Holging = one token, one formula, zero maintenance.
 
 Paradigm Research confirms: "Everything Is A Perp" — the market is moving toward tokenized derivatives. Friktion (Superteam deep dive) proved demand for structured products on Solana, but shut down — the niche is open.
 
@@ -134,7 +134,7 @@ Paradigm Research confirms: "Everything Is A Perp" — the market is moving towa
 - Solana DeFi TVL growing, but hedging infrastructure lags behind
 - Friktion shut down — structured products niche is empty
 - Reflect proved demand ($50K Grand Prize) — but too complex for retail
-- SolShort = **"ProShares Short S&P 500" for crypto — simplicity wins**
+- Holging = **"ProShares Short S&P 500" for crypto — simplicity wins**
 
 ---
 
@@ -146,7 +146,7 @@ Paradigm Research confirms: "Everything Is A Perp" — the market is moving towa
 Selling SOL = exiting the ecosystem. shortSOL = hedge inside the ecosystem. Holging (50% SOL + 50% shortSOL) lets you profit from volatility while staying exposed. shortSOL is a composable SPL token — usable in LP, farming, DeFi strategies.
 
 **Q: How is this better than Drift/Jupiter perps?**
-Different audiences. Perps = traders (margin, funding rate, liquidation monitoring). SolShort = holders (one click, token in wallet, zero maintenance). Analogy: ProShares Short S&P 500 (ETF) vs E-mini S&P futures.
+Different audiences. Perps = traders (margin, funding rate, liquidation monitoring). Holging = holders (one click, token in wallet, zero maintenance). Analogy: ProShares Short S&P 500 (ETF) vs E-mini S&P futures.
 
 **Q: "Holging always wins" — isn't that too good to be true?**
 Mathematically proven in Lean 4 (8 theorems). Economically — break-even at SOL ±4% (0.2% roundtrip fee). For daily moves of 1-2%, profit ≈ zero. The strategy profits from **volatility** — bigger moves = bigger P&L. It's a perpetual straddle without theta decay.
@@ -190,7 +190,7 @@ Yes. `pool_id` is parameterized across all 16 instructions. For shortBTC: new Py
 ### Market
 
 **Q: Squeeth (Ethereum inverse ETF) shut down — why will you succeed?**
-Squeeth used x² model (leveraged, path-dependent). SolShort uses 1/x (no decay, no path dependency). Squeeth required complex infrastructure and deep liquidity. SolShort is vault-backed, zero slippage, simpler model. Different products for different markets.
+Squeeth used x² model (leveraged, path-dependent). Holging uses 1/x (no decay, no path dependency). Squeeth required complex infrastructure and deep liquidity. Holging is vault-backed, zero slippage, simpler model. Different products for different markets.
 
 **Q: TAM/SAM/SOM?**
 TAM: $47B (crypto derivatives daily volume). SAM: $2B (Solana perps volume). SOM: $50M (1-year target, retail hedging + holging). At 0.2% fee capture = $100K/year at $50M volume.

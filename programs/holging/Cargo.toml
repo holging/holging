@@ -1,12 +1,12 @@
 [package]
-name = "solshort"
+name = "holging"
 version = "0.1.0"
-description = "SolShort — Tokenized Hedge Protocol on Solana"
+description = "Holging — Tokenized Hedge Protocol on Solana"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "solshort"
+name = "holging"
 
 [features]
 default = []

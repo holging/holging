@@ -1,5 +1,5 @@
 /**
- * Initialize SolShort pool on devnet.
+ * Initialize Holging pool on devnet.
  *
  * Usage:
  *   npx ts-node scripts/initialize-pool.ts <USDC_MINT_ADDRESS>

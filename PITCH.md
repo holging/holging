@@ -1,4 +1,4 @@
-# SolShort — Tokenized Hedge Protocol on Solana
+# Holging — Tokenized Hedge Protocol on Solana
 
 > Промпт-описание проекта для создания презентации
 
@@ -15,9 +15,9 @@
 
 ---
 
-## 2. Решение — SolShort
+## 2. Решение — Holging
 
-SolShort — **протокол токенизированной обратной экспозиции** на Solana.
+Holging — **протокол токенизированной обратной экспозиции** на Solana.
 
 Пользователь вносит USDC → получает **shortSOL** — SPL-токен, цена которого **обратно пропорциональна** цене SOL:
 
@@ -32,7 +32,7 @@ shortSOL_price = k / SOL_price
 
 ### Ключевое отличие от конкурентов
 
-SolShort использует **мультипликативную модель** (1/x), а не аддитивную (-x). Это значит:
+Holging использует **мультипликативную модель** (1/x), а не аддитивную (-x). Это значит:
 - **Нет volatility decay** — цена shortSOL точно определяется текущей ценой SOL в любой момент
 - **Нет path dependency** — не важно как цена дошла до точки, важна только конечная цена
 - **Нет ребалансировок** — протокол не требует daily rebalance как leveraged ETF
@@ -216,7 +216,7 @@ L_required = TVL / (1 − d)
 
 ## 9. Конкурентные преимущества
 
-| | SolShort | Perp DEX (Drift, Jupiter) | Leveraged tokens |
+| | Holging | Perp DEX (Drift, Jupiter) | Leveraged tokens |
 |---|---------|--------------------------|-----------------|
 | Маржа/ликвидация | Нет | Да | Частично |
 | Volatility decay | Нет | Нет (funding) | Да |
@@ -272,4 +272,4 @@ L_required = TVL / (1 − d)
 
 ---
 
-*SolShort — шорт SOL одной кнопкой. Holging — прибыль в любом направлении.*
+*Holging — шорт SOL одной кнопкой. Holging — прибыль в любом направлении.*

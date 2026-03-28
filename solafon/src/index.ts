@@ -1,7 +1,7 @@
 /**
- * SolShort — Solafon Mini App Entry Point
+ * Holging — Solafon Mini App Entry Point
  *
- * This module integrates SolShort with the Solafon mini app platform.
+ * This module integrates Holging with the Solafon mini app platform.
  * It wraps the standard React app with Solafon-specific wallet handling.
  *
  * Usage:

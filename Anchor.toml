@@ -7,10 +7,10 @@ skip-lint = false
 
 [programs.devnet]
 faucet = "BqisdDoAVUH8KH2uAspUfCYSiiAwdLvuEepk1R8A7hGn"
-solshort = "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX"
+holging = "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX"
 
 [programs.localnet]
-solshort = "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX"
+holging = "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX"
 
 [registry]
 url = "https://api.apr.dev"
