@@ -134,8 +134,6 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint }: LpDas
       return new BN(0);
     }
   })();
-  const pendingFeesUsdc = pendingFeesBn.toNumber() / 1e6;
-
   // Vault APY estimate: totalFeesCollected / lpPrincipal * 365 / poolAgeDays
   const vaultApyPct = (() => {
     if (!pool?.totalFeesCollected || !pool?.lpPrincipal) return null;
