@@ -20,8 +20,8 @@ interface LpDashboardProps {
 
 interface LpPosition {
   shares: BN;
-  feeDebtPerShare: BN;
-  depositedUsdc: BN;
+  feePerShareCheckpoint: BN;
+  pendingFees: BN;
 }
 
 const MIN_DEPOSIT_USDC = 100;
@@ -60,9 +60,9 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint }: LpDas
       const [lpPositionPda] = deriveLpPositionPda(wallet.publicKey);
       const pos = await (program.account as any).lpPosition.fetch(lpPositionPda);
       setLpPosition({
-        shares: pos.shares,
-        feeDebtPerShare: pos.feeDebtPerShare,
-        depositedUsdc: pos.depositedUsdc,
+        shares: new BN(pos.lpShares.toString()),
+        feePerShareCheckpoint: new BN(pos.feePerShareCheckpoint.toString()),
+        pendingFees: new BN(pos.pendingFees.toString()),
       });
     } catch {
       // Account doesn't exist yet — first deposit
@@ -126,7 +126,7 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint }: LpDas
     if (!lpPosition || !pool?.feePerShareAccumulated) return new BN(0);
     try {
       const accum = new BN(pool.feePerShareAccumulated.toString());
-      const debt = lpPosition.feeDebtPerShare;
+      const debt = lpPosition.feePerShareCheckpoint;
       const delta = accum.sub(debt);
       if (delta.lten(0)) return new BN(0);
       return lpPosition.shares.mul(delta).div(FEE_PRECISION);
@@ -297,10 +297,10 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint }: LpDas
           </div>
         </div>
 
-        {lpPosition && !lpPosition.depositedUsdc.isZero() && (
+        {lpPosition && !lpPosition.pendingFees.isZero() && (
           <div className="lp-deposited-hint">
-            Deposited principal:{" "}
-            <strong>{formatUsdc(lpPosition.depositedUsdc)}</strong>
+            Unclaimed fees:{" "}
+            <strong>{formatUsdc(lpPosition.pendingFees)}</strong>
           </div>
         )}
 
