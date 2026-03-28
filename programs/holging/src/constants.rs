@@ -29,8 +29,10 @@ pub const SHORTSOL_DECIMALS: u8 = 9;
 /// Default fee: 4 basis points = 0.04% per side (0.08% roundtrip)
 pub const DEFAULT_FEE_BPS: u16 = 4;
 
-/// Maximum oracle price staleness in seconds (30s for mainnet-grade security)
-pub const MAX_STALENESS_SECS: u64 = 30;
+/// Maximum oracle price staleness in seconds
+/// 86400s on devnet (stock feeds only update during US market hours)
+/// Tighten to 30s for mainnet SOL pools
+pub const MAX_STALENESS_SECS: u64 = 86400;
 
 /// Maximum confidence interval as percentage of price (2%)
 pub const MAX_CONFIDENCE_PCT: u64 = 2;

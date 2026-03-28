@@ -974,9 +974,6 @@
       "accounts": [
         {
           "name": "pool_state",
-          "docs": [
-            "Не используем Account<PoolState> т.к. аккаунт может быть старого размера."
-          ],
           "writable": true,
           "pda": {
             "seeds": [
