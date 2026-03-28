@@ -9,9 +9,24 @@
 Этот документ содержит полный список задач, которые необходимо выполнить перед запуском SolShort на mainnet. Каждый item привязан к конкретным файлам и строкам кода.
 
 **Статистика:**
-- **P0 (Must-have):** 8 items — блокируют launch
+- **P0 (Must-have):** 8 items — блокируют launch (3 выполнено)
 - **P1 (Should-have):** 10 items — важно, но можно launch с documented risk
 - **P2 (Nice-to-have):** 7 items — улучшения для post-launch
+
+---
+
+## Выполнено (deployed on devnet)
+
+| Item | Описание | Коммит | Дата |
+|------|----------|--------|------|
+| ~~P0-1~~ | MAX_STALENESS_SECS: 120s → 30s | `0d3a2d7` | 2026-03-28 |
+| ~~P0-3~~ | MAX_UPDATE_PRICE_DEVIATION_BPS: 5000 → 1500 | `0d3a2d7` | 2026-03-28 |
+| ~~P0-2~~ | Валидация usdc_mint.decimals == 6 в initialize | `0d3a2d7` | 2026-03-28 |
+| — | LP system: add_liquidity, remove_liquidity, claim_lp_fees | `ec07d01` | 2026-03-28 |
+| — | 19 security fixes (3 CRITICAL, 6 HIGH, 7 MEDIUM, 4 LOW) | `ec07d01` | 2026-03-28 |
+| — | 9 on-chain integration tests | `919cc7b` | 2026-03-28 |
+| — | Pool migrated + LP mint initialized on devnet | `f7b28c8` | 2026-03-28 |
+| — | LP Dashboard UI (deposit/withdraw/claim) | `c855740` | 2026-03-28 |
 
 ---
 
@@ -342,9 +357,9 @@
 Все P0 items ДОЛЖНЫ быть завершены (Done when условия выполнены). P1 items — или завершены, или задокументирован risk acceptance с обоснованием.
 
 **Минимальный набор для launch:**
-- [ ] P0-1 Oracle staleness = 30s
-- [ ] P0-2 USDC mint validated
-- [ ] P0-3 Update deviation = 15%
+- [x] P0-1 Oracle staleness = 30s *(done: `0d3a2d7`)*
+- [x] P0-2 USDC mint validated *(done: `0d3a2d7`)*
+- [x] P0-3 Update deviation = 15% *(done: `0d3a2d7`)*
 - [ ] P0-4 Feed ID verified
 - [ ] P0-5 Verifiable build
 - [ ] P0-6 Multisig authority
