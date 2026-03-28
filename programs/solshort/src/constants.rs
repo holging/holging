@@ -29,8 +29,8 @@ pub const SHORTSOL_DECIMALS: u8 = 9;
 /// Default fee: 4 basis points = 0.04% per side (0.08% roundtrip)
 pub const DEFAULT_FEE_BPS: u16 = 4;
 
-/// Maximum oracle price staleness in seconds (120s for devnet, tighten for mainnet)
-pub const MAX_STALENESS_SECS: u64 = 120;
+/// Maximum oracle price staleness in seconds (30s for mainnet-grade security)
+pub const MAX_STALENESS_SECS: u64 = 30;
 
 /// Maximum confidence interval as percentage of price (2%)
 pub const MAX_CONFIDENCE_PCT: u64 = 2;
@@ -41,8 +41,8 @@ pub const MIN_VAULT_RATIO_BPS: u64 = 9500;
 /// Maximum price deviation vs cached price for mint/redeem (15% = 1500 bps)
 pub const MAX_PRICE_DEVIATION_BPS: u64 = 1500;
 
-/// Maximum price deviation for update_price (50% = 5000 bps, wider to allow cache refresh)
-pub const MAX_UPDATE_PRICE_DEVIATION_BPS: u64 = 5000;
+/// Maximum price deviation for update_price (15% = 1500 bps, matching mint/redeem)
+pub const MAX_UPDATE_PRICE_DEVIATION_BPS: u64 = 1500;
 
 /// Minimum SOL price in PRICE_PRECISION units ($1.00)
 pub const MIN_PRICE: u64 = 1_000_000_000;

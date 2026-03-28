@@ -58,6 +58,11 @@ pub struct Initialize<'info> {
 pub fn handler(ctx: Context<Initialize>, pool_id: String, fee_bps: u16) -> Result<()> {
     require!(pool_id.len() <= MAX_POOL_ID_LEN, SolshortError::InvalidPoolId);
     require!(fee_bps <= 100, SolshortError::InvalidFee); // max 1%
+    // Validate USDC mint has expected decimals (prevents accidental wrong token)
+    require!(
+        ctx.accounts.usdc_mint.decimals == USDC_DECIMALS,
+        SolshortError::InvalidFee // reuse error — wrong token decimals
+    );
 
     let pool_bump = ctx.bumps.pool_state;
     let mint_bump = ctx.bumps.shortsol_mint;
