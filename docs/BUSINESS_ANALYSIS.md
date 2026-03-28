@@ -284,7 +284,7 @@ The vault must be overcollateralized *before* users can mint. With $500K seed ro
 **Status: Complete**
 - Anchor program deployed: `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
 - 20 instructions, 16 error codes, 12 event types
-- Live frontend: [solshort.netlify.app](https://solshort.netlify.app)
+- Live frontend: [holging.netlify.app](https://holging.netlify.app)
 - Formally verified (Lean 4, 8 theorems)
 - Permissionless keeper (`scripts/keeper.ts`)
 - On-chain USDC devnet faucet (5,000 USDC/claim)

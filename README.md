@@ -2,7 +2,7 @@
 
 Holging lets you short SOL with a single click. Deposit USDC, receive **shortSOL** — an SPL token whose price moves inversely to SOL using a multiplicative (1/x) model with zero volatility decay, zero path dependency, and zero liquidation risk.
 
-**Live demo:** [solshort.netlify.app](https://solshort.netlify.app)
+**Live demo:** [holging.netlify.app](https://holging.netlify.app)
 **Program ID:** `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
 **Network:** Solana Devnet
 
