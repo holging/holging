@@ -54,13 +54,18 @@ Break-even: SOL moves ±4% (to cover 0.08% roundtrip fee).
 │  ├── mint               — USDC → shortSOL │
 │  ├── redeem             — shortSOL → USDC │
 │  ├── update_price       — refresh oracle  │
+│  LP instructions (permissionless)       │
+│  ├── add_liquidity      — deposit USDC    │
+│  ├── remove_liquidity   — withdraw USDC   │
+│  ├── claim_lp_fees      — claim earned fees│
 │  Admin instructions                     │
 │  ├── initialize         — pool setup      │
-│  ├── add_liquidity      — vault topup     │
-│  ├── remove_liquidity   — vault withdraw  │
-│  ├── withdraw_fees      — fee collection  │
+│  ├── initialize_lp      — create LP mint  │
+│  ├── migrate_pool       — realloc state   │
+│  ├── withdraw_fees      — protocol fees   │
 │  ├── update_k           — recalibrate k   │
 │  ├── update_fee         — adjust fee bps  │
+│  ├── update_min_lp_deposit — LP threshold │
 │  ├── set_pause          — emergency halt  │
 │  ├── create_metadata    — SPL metadata    │
 │  ├── transfer_authority — propose handoff │
@@ -99,6 +104,16 @@ where denom = SECS_PER_DAY × 10,000
 Admin key handoff is atomic and safe:
 1. `transfer_authority` — current admin proposes a new authority (stores `pending_authority`)
 2. `accept_authority` — new authority signs to confirm; previous key is invalidated
+
+## LP System
+
+Permissionless liquidity provision with pro-rata fee distribution:
+
+- **add_liquidity** — deposit USDC, receive LP tokens (ERC4626-style shares)
+- **remove_liquidity** — burn LP tokens, withdraw proportional USDC principal
+- **claim_lp_fees** — collect accumulated trading fees (fee-per-share accumulator, 1e12 precision)
+
+LP providers earn fees from every mint/redeem operation and from funding rate distributions. Minimum deposit: $100 USDC (configurable via `update_min_lp_deposit`).
 
 ## Circuit Breaker
 
@@ -175,9 +190,9 @@ programs/solshort/src/
   ├── constants.rs        — math constants, oracle config
   ├── oracle.rs           — Pyth price validation
   ├── fees.rs             — dynamic fee calculation
-  ├── errors.rs           — 16 error codes
-  ├── events.rs           — 12 event types
-  └── instructions/       — 16 instruction handlers
+  ├── errors.rs           — 20 error codes
+  ├── events.rs           — 16 event types
+  └── instructions/       — 20 instruction handlers
 
 app/src/
   ├── components/         — React UI components
