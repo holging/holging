@@ -135,7 +135,7 @@ export function useSolshort() {
 
             const mintIx = await (program.methods as any)
               .mint(POOL_ID, usdcAmount, minTokensOut)
-              .accounts({
+              .accountsStrict({
                 poolState: poolPda,
                 vaultUsdc,
                 shortsolMint,
@@ -254,7 +254,7 @@ export function useSolshort() {
 
             const redeemIx = await (program.methods as any)
               .redeem(POOL_ID, shortsolAmount, minUsdcOut)
-              .accounts({
+              .accountsStrict({
                 poolState: poolPda,
                 vaultUsdc,
                 shortsolMint,
