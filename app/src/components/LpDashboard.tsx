@@ -134,18 +134,18 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint }: LpDas
       return new BN(0);
     }
   })();
-  // Vault APY estimate: totalFeesCollected / lpPrincipal * 365 / poolAgeDays
+  // Vault APY estimate: funding rate (10 bps/day) is the primary LP income source
+  // Compound: 1 - (1 - 0.001)^365 ≈ 30.6% + trading fee revenue
   const vaultApyPct = (() => {
-    if (!pool?.totalFeesCollected || !pool?.lpPrincipal) return null;
+    // Funding rate APY: ~30.6% base from k-decay (10 bps/day)
+    const fundingApyBase = (1 - Math.pow(1 - 0.001, 365)) * 100;
+    if (!pool?.totalFeesCollected || !pool?.lpPrincipal) return fundingApyBase;
     const principal = new BN(pool.lpPrincipal.toString()).toNumber() / 1e6;
-    if (principal <= 0) return null;
-    const fees = new BN(pool.totalFeesCollected.toString()).toNumber() / 1e6;
-    // Use lastOracleTimestamp as a proxy for pool age if available
-    const poolAgeSec = pool?.lastOracleTimestamp
-      ? Math.max(1, Math.floor(Date.now() / 1000) - Number(pool.lastOracleTimestamp.toString()))
-      : 86400;
-    const poolAgeDays = poolAgeSec / 86400;
-    return (fees / principal) * (365 / poolAgeDays) * 100;
+    if (principal <= 0) return fundingApyBase;
+    // Add trading fee component if meaningful data exists
+    const lpFeesPending = new BN(pool.totalLpFeesPending?.toString() || "0").toNumber() / 1e6;
+    const feeBoost = principal > 0 ? (lpFeesPending / principal) * 365 * 100 : 0;
+    return fundingApyBase + Math.min(feeBoost, 100); // cap fee boost at 100%
   })();
 
   // Deposit preview: USDC → LP shares
