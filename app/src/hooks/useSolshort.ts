@@ -12,6 +12,7 @@ import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
 } from "@solana/spl-token";
+import { Transaction } from "@solana/web3.js";
 import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 import BN from "bn.js";
 import {
@@ -83,18 +84,14 @@ export function useSolshort() {
           );
         }
 
-        // Resolve funding config PDA (optional account — pass explicitly)
         const [fundingConfigPda] = deriveFundingConfigPda();
 
-        // Fetch fresh price update from Hermes
+        // Step 1: Post Pyth price update (separate versioned tx)
         const priceFeedUpdateData = await fetchPriceUpdateData();
-
-        // Build transaction: postPriceUpdate + mint
         const pythReceiver = new PythSolanaReceiver({
           connection,
           wallet: wallet as any,
         });
-
         const txBuilder = pythReceiver.newTransactionBuilder({
           closeUpdateAccounts: false,
         });
@@ -104,71 +101,70 @@ export function useSolshort() {
         await txBuilder.addPriceConsumerInstructions(
           async (getPriceUpdateAccount) => {
             try {
-              priceUpdateAccount = getPriceUpdateAccount(
-                "0x" + SOL_USD_FEED_ID
-              );
+              priceUpdateAccount = getPriceUpdateAccount("0x" + SOL_USD_FEED_ID);
             } catch {
               priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
             }
-
-            // Update cached price first (no deviation check)
-            const updatePriceIx = await (program.methods as any)
-              .updatePrice(POOL_ID)
-              .accounts({
-                poolState: poolPda,
-                pythPrice: priceUpdateAccount,
-                payer: wallet.publicKey,
-              })
-              .instruction();
-
-            // Calculate slippage-protected minimum output
-            const poolAcc = await (program.account as any).poolState.fetch(poolPda);
-            const solPricePyth = await fetchSolPrice();
-            const solPriceBn = new BN(pythPriceToPrecision(solPricePyth).toString());
-            const shortsolPrice = calcShortsolPrice(new BN(poolAcc.k.toString()), solPriceBn);
-            const dynamicFee = calcDynamicFee(
-              new BN(poolAcc.feeBps), new BN(poolAcc.vaultBalance.toString()),
-              new BN(poolAcc.circulating.toString()), new BN(poolAcc.k.toString()), solPriceBn
-            );
-            const { tokens: expectedTokens } = calcMintTokens(usdcAmount, shortsolPrice, dynamicFee);
-            const minTokensOut = expectedTokens.mul(BPS_DENOM.sub(new BN(SLIPPAGE_BPS))).div(BPS_DENOM);
-
-            const mintIx = await (program.methods as any)
-              .mint(POOL_ID, usdcAmount, minTokensOut)
-              .accountsStrict({
-                poolState: poolPda,
-                vaultUsdc,
-                shortsolMint,
-                mintAuthority: mintAuth,
-                priceUpdate: priceUpdateAccount,
-                usdcMint,
-                userUsdc,
-                userShortsol,
-                user: wallet.publicKey,
-                fundingConfig: fundingConfigPda,
-                tokenProgram: TOKEN_PROGRAM_ID,
-                systemProgram: SystemProgram.programId,
-              })
-              .instruction();
-
-            return [
-              ...preIxs.map((ix) => ({ instruction: ix, signers: [] })),
-              { instruction: updatePriceIx, signers: [] },
-              { instruction: mintIx, signers: [] },
-            ];
+            return []; // no consumer instructions — just resolve the account
           }
         );
-
-        // Build versioned transactions
-        const txs = await txBuilder.buildVersionedTransactions({
+        const postTxs = await txBuilder.buildVersionedTransactions({
           tightComputeBudget: false,
         });
+        await signAndSendVersionedTxs(postTxs, wallet, connection);
 
-        // Sign and send
-        const lastSig = await signAndSendVersionedTxs(
-          txs,
-          wallet,
-          connection
+        // Step 2: Build regular transaction with updatePrice + mint
+        const updatePriceIx = await (program.methods as any)
+          .updatePrice(POOL_ID)
+          .accounts({
+            poolState: poolPda,
+            pythPrice: priceUpdateAccount!,
+            payer: wallet.publicKey,
+          })
+          .instruction();
+
+        const poolAcc = await (program.account as any).poolState.fetch(poolPda);
+        const solPricePyth = await fetchSolPrice();
+        const solPriceBn = new BN(pythPriceToPrecision(solPricePyth).toString());
+        const shortsolPrice = calcShortsolPrice(new BN(poolAcc.k.toString()), solPriceBn);
+        const dynamicFee = calcDynamicFee(
+          new BN(poolAcc.feeBps), new BN(poolAcc.vaultBalance.toString()),
+          new BN(poolAcc.circulating.toString()), new BN(poolAcc.k.toString()), solPriceBn
+        );
+        const { tokens: expectedTokens } = calcMintTokens(usdcAmount, shortsolPrice, dynamicFee);
+        const minTokensOut = expectedTokens.mul(BPS_DENOM.sub(new BN(SLIPPAGE_BPS))).div(BPS_DENOM);
+
+        const mintIx = await (program.methods as any)
+          .mint(POOL_ID, usdcAmount, minTokensOut)
+          .accountsStrict({
+            poolState: poolPda,
+            vaultUsdc,
+            shortsolMint,
+            mintAuthority: mintAuth,
+            priceUpdate: priceUpdateAccount!,
+            usdcMint,
+            userUsdc,
+            userShortsol,
+            user: wallet.publicKey,
+            fundingConfig: fundingConfigPda,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .instruction();
+
+        const tx = new Transaction();
+        preIxs.forEach((ix) => tx.add(ix));
+        tx.add(updatePriceIx);
+        tx.add(mintIx);
+
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = wallet.publicKey;
+        const signed = await wallet.signTransaction(tx);
+        const lastSig = await connection.sendRawTransaction(signed.serialize());
+        await connection.confirmTransaction(
+          { signature: lastSig, blockhash, lastValidBlockHeight },
+          "confirmed"
         );
 
         setTxSig(lastSig);
