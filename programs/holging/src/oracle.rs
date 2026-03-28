@@ -22,8 +22,9 @@ pub struct OraclePrice {
 pub fn get_validated_price_wide_deviation(
     price_update: &Account<PriceUpdateV2>,
     last_cached_price: u64,
+    feed_id: &[u8; 64],
 ) -> Result<OraclePrice> {
-    get_validated_price_inner(price_update, last_cached_price, MAX_UPDATE_PRICE_DEVIATION_BPS)
+    get_validated_price_inner(price_update, last_cached_price, MAX_UPDATE_PRICE_DEVIATION_BPS, feed_id)
 }
 
 /// Read and validate Pyth SOL/USD price.
@@ -36,18 +37,22 @@ pub fn get_validated_price_wide_deviation(
 pub fn get_validated_price(
     price_update: &Account<PriceUpdateV2>,
     last_cached_price: u64,
+    feed_id: &[u8; 64],
 ) -> Result<OraclePrice> {
-    get_validated_price_inner(price_update, last_cached_price, MAX_PRICE_DEVIATION_BPS)
+    get_validated_price_inner(price_update, last_cached_price, MAX_PRICE_DEVIATION_BPS, feed_id)
 }
 
 fn get_validated_price_inner(
     price_update: &Account<PriceUpdateV2>,
     last_cached_price: u64,
     max_deviation_bps: u64,
+    feed_id: &[u8; 64],
 ) -> Result<OraclePrice> {
     let clock = Clock::get()?;
 
-    let feed_id = pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex(SOL_USD_FEED_ID)
+    let feed_id_str = std::str::from_utf8(feed_id)
+        .map_err(|_| error!(SolshortError::StaleOracle))?;
+    let feed_id = pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex(feed_id_str)
         .map_err(|_| error!(SolshortError::StaleOracle))?;
 
     // get_price_no_older_than checks staleness internally

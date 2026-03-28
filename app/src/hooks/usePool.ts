@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useConnection, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { getProgram, derivePoolPda } from "../utils/program";
+import { DEFAULT_POOL_ID } from "../config/pools";
 import BN from "bn.js";
 
 export interface PoolState {
@@ -19,7 +20,7 @@ export interface PoolState {
   lastOracleTimestamp: BN;
   bump: number;
   mintAuthBump: number;
-  // LP system fields (present after initialize_lp)
+  // LP system fields
   lpMint: string;
   lpTotalSupply: BN;
   feePerShareAccumulated: BN;
@@ -28,7 +29,7 @@ export interface PoolState {
   totalLpFeesPending: BN;
 }
 
-export function usePool(intervalMs = 15_000) {
+export function usePool(poolId: string = DEFAULT_POOL_ID, intervalMs = 15_000) {
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
   const [pool, setPool] = useState<PoolState | null>(null);
@@ -42,7 +43,7 @@ export function usePool(intervalMs = 15_000) {
     }
     try {
       const program = getProgram(connection, wallet);
-      const [poolPda] = derivePoolPda();
+      const [poolPda] = derivePoolPda(poolId);
       const account = await (program.account as any).poolState.fetch(poolPda);
       setPool({
         authority: account.authority.toBase58(),
@@ -60,7 +61,6 @@ export function usePool(intervalMs = 15_000) {
         lastOracleTimestamp: account.lastOracleTimestamp,
         bump: account.bump,
         mintAuthBump: account.mintAuthBump,
-        // LP fields — may be absent on older pool state
         lpMint: account.lpMint ? account.lpMint.toBase58() : "",
         lpTotalSupply: account.lpTotalSupply ?? new BN(0),
         feePerShareAccumulated: account.feePerShareAccumulated ?? new BN(0),
@@ -75,7 +75,7 @@ export function usePool(intervalMs = 15_000) {
     } finally {
       setLoading(false);
     }
-  }, [connection, wallet]);
+  }, [connection, wallet, poolId]);
 
   useEffect(() => {
     refresh();

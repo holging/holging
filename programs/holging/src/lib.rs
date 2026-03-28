@@ -16,8 +16,8 @@ declare_id!("CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX");
 pub mod holging {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>, pool_id: String, fee_bps: u16) -> Result<()> {
-        instructions::initialize::handler(ctx, pool_id, fee_bps)
+    pub fn initialize(ctx: Context<Initialize>, pool_id: String, fee_bps: u16, pyth_feed_id: [u8; 64]) -> Result<()> {
+        instructions::initialize::handler(ctx, pool_id, fee_bps, pyth_feed_id)
     }
 
     pub fn mint(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64, min_tokens_out: u64) -> Result<()> {

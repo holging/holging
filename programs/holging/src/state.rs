@@ -50,6 +50,8 @@ pub struct PoolState {
     pub mint_auth_bump: u8,
     /// Pending authority for two-step transfer (default = нет pending)
     pub pending_authority: Pubkey,
+    /// Pyth price feed ID as UTF-8 hex bytes (64 chars = [u8; 64])
+    pub pyth_feed_id: [u8; 64],
 
     // ─── LP система ───────────────────────────────────────────────────────────
 

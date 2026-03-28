@@ -142,7 +142,8 @@ pub fn accrue_funding_handler(ctx: Context<AccrueFunding>, _pool_id: String) -> 
         .saturating_sub(last_funding_before);
 
     // Получаем цену оракула для расчёта freed USDC
-    let oracle = get_validated_price(&ctx.accounts.price_update, cached_price)?;
+    let feed_id = ctx.accounts.pool_state.pyth_feed_id;
+    let oracle = get_validated_price(&ctx.accounts.price_update, cached_price, &feed_id)?;
     let sol_price = oracle.price;
 
     // freed_usdc = обязательства при k_old − обязательства при k_new

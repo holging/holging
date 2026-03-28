@@ -50,7 +50,8 @@ pub fn handler(ctx: Context<WithdrawFees>, _pool_id: String, amount: u64) -> Res
     let pool = &mut ctx.accounts.pool_state;
 
     // Use fresh oracle price for obligation calculation
-    let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price)?;
+    let feed_id = pool.pyth_feed_id;
+    let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price, &feed_id)?;
     let sol_price = oracle.price;
 
     let obligations = calc_obligations(pool.circulating, pool.k, sol_price)?;

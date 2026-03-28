@@ -96,6 +96,14 @@ pub fn handler(ctx: Context<MigratePool>, _pool_id: String) -> Result<()> {
         data[min_deposit_offset..min_deposit_offset + 8].copy_from_slice(&min_deposit_bytes);
     }
 
+    // pyth_feed_id — set SOL/USD feed for existing pool
+    // Offset: min_deposit_offset + 8 (min_lp_deposit) + 8 (total_lp_fees_pending) = 293
+    let feed_offset = min_deposit_offset + 8 + 8;
+    if feed_offset + 64 <= target_len {
+        let feed_bytes = SOL_USD_FEED_ID.as_bytes();
+        data[feed_offset..feed_offset + 64].copy_from_slice(feed_bytes);
+    }
+
     msg!("Migration complete. min_lp_deposit set to {}", MIN_LP_DEPOSIT);
 
     Ok(())

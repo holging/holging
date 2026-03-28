@@ -93,7 +93,8 @@ pub fn handler(
     let pool = &mut ctx.accounts.pool_state;
 
     // 1. Get validated oracle price
-    let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price)?;
+    let feed_id = pool.pyth_feed_id;
+    let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price, &feed_id)?;
     let sol_price = oracle.price;
 
     // 2. Calculate shortSOL price

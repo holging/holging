@@ -779,6 +779,15 @@
         {
           "name": "fee_bps",
           "type": "u16"
+        },
+        {
+          "name": "pyth_feed_id",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
         }
       ]
     },
@@ -2734,6 +2743,18 @@
               "Pending authority for two-step transfer (default = нет pending)"
             ],
             "type": "pubkey"
+          },
+          {
+            "name": "pyth_feed_id",
+            "docs": [
+              "Pyth price feed ID as UTF-8 hex bytes (64 chars = [u8; 64])"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           },
           {
             "name": "lp_mint",

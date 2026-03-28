@@ -2,10 +2,10 @@ import { Program, AnchorProvider } from "@coral-xyz/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import IDL from "../idl/solshort.json";
+import { DEFAULT_POOL_ID } from "../config/pools";
 
 export const PROGRAM_ID = new PublicKey(IDL.address);
 
-export const POOL_ID = "sol";
 const POOL_SEED = Buffer.from("pool");
 const VAULT_SEED = Buffer.from("vault");
 const MINT_AUTH_SEED = Buffer.from("mint_auth");
@@ -27,52 +27,52 @@ export function getProgram(connection: Connection, wallet: AnchorWallet) {
   return new Program(IDL as any, provider);
 }
 
-export function derivePoolPda(): [PublicKey, number] {
+export function derivePoolPda(poolId: string = DEFAULT_POOL_ID): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [POOL_SEED, Buffer.from(POOL_ID)],
+    [POOL_SEED, Buffer.from(poolId)],
     PROGRAM_ID
   );
 }
 
-export function deriveShortsolMintPda(): [PublicKey, number] {
+export function deriveShortsolMintPda(poolId: string = DEFAULT_POOL_ID): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [SHORTSOL_MINT_SEED, Buffer.from(POOL_ID)],
+    [SHORTSOL_MINT_SEED, Buffer.from(poolId)],
     PROGRAM_ID
   );
 }
 
-export function deriveMintAuthPda(): [PublicKey, number] {
+export function deriveMintAuthPda(poolId: string = DEFAULT_POOL_ID): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [MINT_AUTH_SEED, Buffer.from(POOL_ID)],
+    [MINT_AUTH_SEED, Buffer.from(poolId)],
     PROGRAM_ID
   );
 }
 
-export function deriveVaultPda(usdcMint: PublicKey): [PublicKey, number] {
+export function deriveVaultPda(usdcMint: PublicKey, poolId: string = DEFAULT_POOL_ID): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [VAULT_SEED, usdcMint.toBuffer(), Buffer.from(POOL_ID)],
+    [VAULT_SEED, usdcMint.toBuffer(), Buffer.from(poolId)],
     PROGRAM_ID
   );
 }
 
-export function deriveFundingConfigPda(): [PublicKey, number] {
-  const [poolPda] = derivePoolPda();
+export function deriveFundingConfigPda(poolId: string = DEFAULT_POOL_ID): [PublicKey, number] {
+  const [poolPda] = derivePoolPda(poolId);
   return PublicKey.findProgramAddressSync(
     [FUNDING_SEED, poolPda.toBuffer()],
     PROGRAM_ID
   );
 }
 
-export function deriveLpMintPda(): [PublicKey, number] {
-  const [poolPda] = derivePoolPda();
+export function deriveLpMintPda(poolId: string = DEFAULT_POOL_ID): [PublicKey, number] {
+  const [poolPda] = derivePoolPda(poolId);
   return PublicKey.findProgramAddressSync(
     [LP_MINT_SEED, poolPda.toBuffer()],
     PROGRAM_ID
   );
 }
 
-export function deriveLpPositionPda(lpProvider: PublicKey): [PublicKey, number] {
-  const [poolPda] = derivePoolPda();
+export function deriveLpPositionPda(lpProvider: PublicKey, poolId: string = DEFAULT_POOL_ID): [PublicKey, number] {
+  const [poolPda] = derivePoolPda(poolId);
   return PublicKey.findProgramAddressSync(
     [LP_POSITION_SEED, poolPda.toBuffer(), lpProvider.toBuffer()],
     PROGRAM_ID

@@ -27,9 +27,11 @@ pub fn handler(ctx: Context<UpdatePrice>, _pool_id: String) -> Result<()> {
     require!(_pool_id.len() <= MAX_POOL_ID_LEN, SolshortError::InvalidPoolId);
     let pool = &mut ctx.accounts.pool_state;
 
+    let feed_id = pool.pyth_feed_id;
     let oracle_price = oracle::get_validated_price_wide_deviation(
         &ctx.accounts.pyth_price,
         pool.last_oracle_price,
+        &feed_id,
     )?;
 
     let old_price = pool.last_oracle_price;

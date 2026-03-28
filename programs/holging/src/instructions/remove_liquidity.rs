@@ -107,7 +107,8 @@ pub fn handler(
     require!(usdc_out > 0, SolshortError::AmountTooSmall);
 
     // Проверяем здоровье vault после вывода (минимум 110% обязательств)
-    let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price)?;
+    let feed_id = pool.pyth_feed_id;
+    let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price, &feed_id)?;
     let obligations = calc_obligations(pool.circulating, pool.k, oracle.price)?;
 
     let remaining = pool

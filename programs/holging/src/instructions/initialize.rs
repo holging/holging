@@ -55,7 +55,7 @@ pub struct Initialize<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
-pub fn handler(ctx: Context<Initialize>, pool_id: String, fee_bps: u16) -> Result<()> {
+pub fn handler(ctx: Context<Initialize>, pool_id: String, fee_bps: u16, pyth_feed_id: [u8; 64]) -> Result<()> {
     require!(pool_id.len() <= MAX_POOL_ID_LEN, SolshortError::InvalidPoolId);
     require!(fee_bps <= 100, SolshortError::InvalidFee); // max 1%
     // Validate USDC mint has expected decimals (prevents accidental wrong token)
@@ -142,7 +142,7 @@ pub fn handler(ctx: Context<Initialize>, pool_id: String, fee_bps: u16) -> Resul
     )?;
 
     // Read initial SOL price from Pyth to compute k = P0^2 / PRICE_PRECISION
-    let oracle = get_validated_price(&ctx.accounts.price_update, 0)?;
+    let oracle = get_validated_price(&ctx.accounts.price_update, 0, &pyth_feed_id)?;
     let sol_price = oracle.price; // scaled 1e9
 
     // k = sol_price^2 / PRICE_PRECISION
