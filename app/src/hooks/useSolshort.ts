@@ -83,11 +83,6 @@ export function useSolshort() {
           );
         }
 
-        // Resolve optional funding config account
-        const [fundingConfigPda] = deriveFundingConfigPda();
-        const fundingConfigInfo = await connection.getAccountInfo(fundingConfigPda);
-        const fundingConfig = fundingConfigInfo ? fundingConfigPda : SystemProgram.programId;
-
         // Fetch fresh price update from Hermes
         const priceFeedUpdateData = await fetchPriceUpdateData();
 
@@ -147,7 +142,6 @@ export function useSolshort() {
                 userUsdc,
                 userShortsol,
                 user: wallet.publicKey,
-                fundingConfig,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
               })
@@ -204,11 +198,6 @@ export function useSolshort() {
           shortsolMint,
           wallet.publicKey
         );
-
-        // Resolve optional funding config account
-        const [fundingConfigPda] = deriveFundingConfigPda();
-        const fundingConfigInfo = await connection.getAccountInfo(fundingConfigPda);
-        const fundingConfig = fundingConfigInfo ? fundingConfigPda : SystemProgram.programId;
 
         // Fetch fresh price update from Hermes
         const priceFeedUpdateData = await fetchPriceUpdateData();
@@ -267,7 +256,6 @@ export function useSolshort() {
                 userShortsol,
                 userUsdc,
                 user: wallet.publicKey,
-                fundingConfig,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
               })
