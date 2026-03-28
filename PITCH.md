@@ -110,10 +110,13 @@ SOL должен сдвинуться на ±4% для прибыли после
 ## 5. Что построено
 
 ### Смарт-контракт (Solana / Anchor / Rust)
-- **12 инструкций**: initialize, mint, redeem, add_liquidity, remove_liquidity, withdraw_fees, update_k, update_fee, update_price, set_pause, create_metadata, transfer_authority
-- **15 кодов ошибок** с полной обработкой
-- **7 типов событий** для аналитики
+- **16 инструкций**: initialize, mint, redeem, add_liquidity, remove_liquidity, withdraw_fees, update_k, update_fee, update_price, set_pause, create_metadata, transfer_authority, accept_authority, initialize_funding, accrue_funding, update_funding_rate
+- **16 кодов ошибок** с полной обработкой
+- **12 типов событий** для аналитики (MintEvent, RedeemEvent, CircuitBreakerTriggered, AddLiquidityEvent, WithdrawFeesEvent, RemoveLiquidityEvent, PauseEvent, UpdateFeeEvent, UpdateKEvent, ProposeAuthorityEvent, TransferAuthorityEvent, FundingAccruedEvent)
 - **Динамические комиссии** (5–50 bps в зависимости от vault ratio)
+- **Funding rate** — k-decay 10 bps/день (~30.6%/год); инлайн-применение при mint/redeem без зависимости от keeper
+- **Two-step authority transfer** — безопасная передача прав через propose + accept
+- **Порог вывода 110%** — admin не может снизить vault ниже 110% обязательств (буфер до circuit breaker)
 - **Формальная верификация** — 8 теорем доказаны в Lean 4 (Mathlib)
 - **Checked arithmetic** — защита от overflow во всех операциях
 - **Задеплоен на Devnet**: `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
@@ -161,13 +164,14 @@ SOL должен сдвинуться на ±4% для прибыли после
 
 ```
 Blockchain:    Solana (400ms finality, $0.001 per tx)
-Smart Contract: Anchor 0.32.1 (Rust), 12 инструкций
+Smart Contract: Anchor 0.32.1 (Rust), 16 инструкций
 Oracle:        Pyth Network (pull-based, 400ms latency)
 Frontend:      React 19 + TypeScript 5.9 + Vite 7
 Wallet:        Solana Wallet Adapter
 Token:         SPL Token + Metaplex metadata
 Верификация:   Lean 4 + Mathlib (8 теорем)
 Hosting:       Netlify (frontend)
+Keeper:        Node.js скрипт (scripts/keeper.ts), permissionless
 Mobile:        Solafon Mini App (в разработке)
 ```
 
@@ -228,9 +232,12 @@ L_required = TVL / (1 − d)
 ## 10. Roadmap
 
 ### Phase 1: Devnet MVP ✅ (текущая)
-- ✅ Anchor program: 12 инструкций
+- ✅ Anchor program: 16 инструкций, 16 кодов ошибок, 12 событий
 - ✅ Pyth devnet integration
 - ✅ Динамические комиссии (5–50 bps)
+- ✅ Funding rate (k-decay, 10 bps/день, inline при mint/redeem)
+- ✅ Two-step authority transfer (propose + accept)
+- ✅ Withdraw floor 110% (буфер до circuit breaker)
 - ✅ Frontend: Mint, Redeem, Holging, Holders, State, Risk Dashboard
 - ✅ Lean 4 формальная верификация (8 теорем)
 - ✅ Деплой на Netlify

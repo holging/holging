@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::constants::*;
 use crate::errors::SolshortError;
+use crate::events::UpdateFeeEvent;
 use crate::state::PoolState;
 
 #[derive(Accounts)]
@@ -20,8 +21,12 @@ pub struct UpdateFee<'info> {
 
 pub fn handler(ctx: Context<UpdateFee>, _pool_id: String, new_fee_bps: u16) -> Result<()> {
     require!(new_fee_bps <= 100, SolshortError::InvalidFee); // max 1%
-    let old = ctx.accounts.pool_state.fee_bps;
+    let old_fee_bps = ctx.accounts.pool_state.fee_bps;
     ctx.accounts.pool_state.fee_bps = new_fee_bps;
-    msg!("Fee updated: {} -> {} bps", old, new_fee_bps);
+    emit!(UpdateFeeEvent {
+        old_fee_bps,
+        new_fee_bps,
+        authority: ctx.accounts.authority.key(),
+    });
     Ok(())
 }

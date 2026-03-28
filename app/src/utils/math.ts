@@ -27,11 +27,11 @@ export function calcDynamicFee(
   if (ratio > 20_000) {
     fee = Math.floor(baseFee.toNumber() / 2);
   } else if (ratio > 15_000) {
-    fee = baseFee.toNumber();
-  } else if (ratio > 10_000) {
-    fee = Math.floor(baseFee.toNumber() * 5 / 2);
-  } else {
     fee = baseFee.toNumber() * 5;
+  } else if (ratio > 10_000) {
+    fee = baseFee.toNumber() * 10;
+  } else {
+    fee = baseFee.toNumber() * 20;
   }
   return new BN(Math.max(Math.min(fee, 100), 1));
 }

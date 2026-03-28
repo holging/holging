@@ -8,6 +8,7 @@ import {
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
 } from "@solana/spl-token";
@@ -19,6 +20,9 @@ import {
   deriveShortsolMintPda,
   deriveMintAuthPda,
   deriveVaultPda,
+  deriveFundingConfigPda,
+  deriveLpMintPda,
+  deriveLpPositionPda,
   POOL_ID,
 } from "../utils/program";
 import { HERMES_URL, SOL_USD_FEED_ID, fetchSolPrice, pythPriceToPrecision } from "../utils/pyth";
@@ -79,6 +83,11 @@ export function useSolshort() {
           );
         }
 
+        // Resolve optional funding config account
+        const [fundingConfigPda] = deriveFundingConfigPda();
+        const fundingConfigInfo = await connection.getAccountInfo(fundingConfigPda);
+        const fundingConfig = fundingConfigInfo ? fundingConfigPda : SystemProgram.programId;
+
         // Fetch fresh price update from Hermes
         const priceFeedUpdateData = await fetchPriceUpdateData();
 
@@ -138,6 +147,7 @@ export function useSolshort() {
                 userUsdc,
                 userShortsol,
                 user: wallet.publicKey,
+                fundingConfig,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
               })
@@ -194,6 +204,11 @@ export function useSolshort() {
           shortsolMint,
           wallet.publicKey
         );
+
+        // Resolve optional funding config account
+        const [fundingConfigPda] = deriveFundingConfigPda();
+        const fundingConfigInfo = await connection.getAccountInfo(fundingConfigPda);
+        const fundingConfig = fundingConfigInfo ? fundingConfigPda : SystemProgram.programId;
 
         // Fetch fresh price update from Hermes
         const priceFeedUpdateData = await fetchPriceUpdateData();
@@ -252,6 +267,7 @@ export function useSolshort() {
                 userShortsol,
                 userUsdc,
                 user: wallet.publicKey,
+                fundingConfig,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
               })
@@ -295,9 +311,15 @@ export function useSolshort() {
         const program = getProgram(connection, wallet);
         const [poolPda] = derivePoolPda();
         const [vaultUsdc] = deriveVaultPda(usdcMint);
+        const [lpMint] = deriveLpMintPda();
+        const [lpPosition] = deriveLpPositionPda(wallet.publicKey);
 
-        const authorityUsdc = await getAssociatedTokenAddress(
+        const lpProviderUsdc = await getAssociatedTokenAddress(
           usdcMint,
+          wallet.publicKey
+        );
+        const lpProviderLpAta = await getAssociatedTokenAddress(
+          lpMint,
           wallet.publicKey
         );
 
@@ -306,10 +328,15 @@ export function useSolshort() {
           .accounts({
             poolState: poolPda,
             vaultUsdc,
+            lpMint,
+            lpPosition,
+            lpProviderLpAta,
             usdcMint,
-            authorityUsdc,
-            authority: wallet.publicKey,
+            lpProviderUsdc,
+            lpProvider: wallet.publicKey,
             tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
           })
           .rpc();
 
@@ -453,7 +480,170 @@ export function useSolshort() {
     [connection, wallet]
   );
 
-  return { mint, redeem, addLiquidity, setPause, updateK, updatePrice, txSig, loading, error };
+  const removeLiquidity = useCallback(
+    async (lpSharesAmount: BN, usdcMint: PublicKey) => {
+      if (!wallet) throw new Error("Wallet not connected");
+      setLoading(true);
+      setError(null);
+      try {
+        const program = getProgram(connection, wallet);
+        const [poolPda] = derivePoolPda();
+        const [vaultUsdc] = deriveVaultPda(usdcMint);
+        const [lpMint] = deriveLpMintPda();
+        const [lpPosition] = deriveLpPositionPda(wallet.publicKey);
+
+        const lpProviderUsdc = await getAssociatedTokenAddress(usdcMint, wallet.publicKey);
+        const lpProviderLpAta = await getAssociatedTokenAddress(lpMint, wallet.publicKey);
+
+        const priceFeedUpdateData = await fetchPriceUpdateData();
+        const pythReceiver = new PythSolanaReceiver({ connection, wallet: wallet as any });
+        const txBuilder = pythReceiver.newTransactionBuilder({ closeUpdateAccounts: false });
+        await txBuilder.addPostPriceUpdates(priceFeedUpdateData);
+
+        let priceUpdateAccount: PublicKey;
+        await txBuilder.addPriceConsumerInstructions(async (getPriceUpdateAccount) => {
+          try {
+            priceUpdateAccount = getPriceUpdateAccount("0x" + SOL_USD_FEED_ID);
+          } catch {
+            priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
+          }
+          const ix = await (program.methods as any)
+            .removeLiquidity(POOL_ID, lpSharesAmount)
+            .accounts({
+              poolState: poolPda,
+              vaultUsdc,
+              lpMint,
+              lpPosition,
+              lpProviderLpAta,
+              usdcMint,
+              lpProviderUsdc,
+              priceUpdate: priceUpdateAccount,
+              lpProvider: wallet.publicKey,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              systemProgram: SystemProgram.programId,
+            })
+            .instruction();
+          return [{ instruction: ix, signers: [] }];
+        });
+
+        const txs = await txBuilder.buildVersionedTransactions({ tightComputeBudget: false });
+        const lastSig = await signAndSendVersionedTxs(txs, wallet, connection);
+        setTxSig(lastSig);
+        return lastSig;
+      } catch (e: any) {
+        setError(e.message);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [connection, wallet]
+  );
+
+  const claimLpFees = useCallback(
+    async (usdcMint: PublicKey) => {
+      if (!wallet) throw new Error("Wallet not connected");
+      setLoading(true);
+      setError(null);
+      try {
+        const program = getProgram(connection, wallet);
+        const [poolPda] = derivePoolPda();
+        const [vaultUsdc] = deriveVaultPda(usdcMint);
+        const [lpPosition] = deriveLpPositionPda(wallet.publicKey);
+        const lpProviderUsdc = await getAssociatedTokenAddress(usdcMint, wallet.publicKey);
+
+        const sig = await (program.methods as any)
+          .claimLpFees(POOL_ID)
+          .accounts({
+            poolState: poolPda,
+            vaultUsdc,
+            lpPosition,
+            usdcMint,
+            lpProviderUsdc,
+            lpProvider: wallet.publicKey,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .rpc();
+
+        await connection.confirmTransaction(sig, "confirmed");
+        setTxSig(sig);
+        return sig;
+      } catch (e: any) {
+        setError(e.message);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [connection, wallet]
+  );
+
+  const transferAuthority = useCallback(
+    async (newAuthority: PublicKey) => {
+      if (!wallet) throw new Error("Wallet not connected");
+      setLoading(true);
+      setError(null);
+      try {
+        const program = getProgram(connection, wallet);
+        const [poolPda] = derivePoolPda();
+
+        const sig = await (program.methods as any)
+          .transferAuthority(POOL_ID)
+          .accounts({
+            poolState: poolPda,
+            authority: wallet.publicKey,
+            newAuthority,
+          })
+          .rpc();
+
+        await connection.confirmTransaction(sig, "confirmed");
+        setTxSig(sig);
+        return sig;
+      } catch (e: any) {
+        setError(e.message);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [connection, wallet]
+  );
+
+  const acceptAuthority = useCallback(
+    async () => {
+      if (!wallet) throw new Error("Wallet not connected");
+      setLoading(true);
+      setError(null);
+      try {
+        const program = getProgram(connection, wallet);
+        const [poolPda] = derivePoolPda();
+
+        const sig = await (program.methods as any)
+          .acceptAuthority(POOL_ID)
+          .accounts({
+            poolState: poolPda,
+            newAuthority: wallet.publicKey,
+          })
+          .rpc();
+
+        await connection.confirmTransaction(sig, "confirmed");
+        setTxSig(sig);
+        return sig;
+      } catch (e: any) {
+        setError(e.message);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [connection, wallet]
+  );
+
+  return {
+    mint, redeem, addLiquidity, removeLiquidity, claimLpFees,
+    transferAuthority, acceptAuthority, setPause, updateK, updatePrice,
+    txSig, loading, error,
+  };
 }
 
 /** Sign and send versioned transactions sequentially */
@@ -468,7 +658,7 @@ async function signAndSendVersionedTxs(
     const ephemeralSigners: Keypair[] = entry.signers || [];
 
     // Replace blockhash with a fresh one to avoid "Blockhash not found"
-    const { blockhash } = await connection.getLatestBlockhash("confirmed");
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
     vtx.message.recentBlockhash = blockhash;
 
     // Ephemeral signers sign first
@@ -479,9 +669,12 @@ async function signAndSendVersionedTxs(
     // Wallet signs
     const signed = await wallet.signTransaction(vtx);
 
-    // Send
+    // Send and confirm with expiry-based timeout (fails fast if tx expires)
     const sig = await connection.sendTransaction(signed);
-    await connection.confirmTransaction(sig, "confirmed");
+    await connection.confirmTransaction(
+      { signature: sig, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
     lastSig = sig;
   }
   return lastSig;

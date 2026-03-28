@@ -235,8 +235,8 @@ describe("solshort", () => {
   // IDL validation
   // ═══════════════════════════════════════════════════
   describe("IDL validation", () => {
-    it("has 12 instructions", () => {
-      assert.equal(IDL.instructions.length, 12);
+    it("has 20 instructions", () => {
+      assert.equal(IDL.instructions.length, 20);
       const names = IDL.instructions.map((i: any) => i.name);
       assert.include(names, "initialize");
       assert.include(names, "mint");
@@ -249,10 +249,19 @@ describe("solshort", () => {
       assert.include(names, "set_pause");
       assert.include(names, "create_metadata");
       assert.include(names, "transfer_authority");
+      assert.include(names, "accept_authority");
+      assert.include(names, "update_fee");
+      assert.include(names, "initialize_funding");
+      assert.include(names, "accrue_funding");
+      assert.include(names, "update_funding_rate");
+      assert.include(names, "initialize_lp");
+      assert.include(names, "migrate_pool");
+      assert.include(names, "claim_lp_fees");
+      assert.include(names, "update_min_lp_deposit");
     });
 
-    it("has 15 error codes", () => {
-      assert.equal(IDL.errors.length, 15);
+    it("has 20 error codes", () => {
+      assert.equal(IDL.errors.length, 20);
       const names = IDL.errors.map((e: any) => e.name);
       assert.include(names, "Paused");
       assert.include(names, "StaleOracle");
@@ -261,6 +270,7 @@ describe("solshort", () => {
       assert.include(names, "RateLimitExceeded");
       assert.include(names, "InvalidPoolId");
       assert.include(names, "SlippageExceeded");
+      assert.include(names, "NoPendingAuthority");
     });
 
     it("has PoolState type with all fields", () => {
@@ -279,13 +289,25 @@ describe("solshort", () => {
       assert.include(fieldNames, "mint_auth_bump");
     });
 
-    it("has 7 events", () => {
-      assert.equal(IDL.events.length, 7);
+    it("has 16 events", () => {
+      assert.equal(IDL.events.length, 16);
       const names = IDL.events.map((e: any) => e.name);
       assert.include(names, "MintEvent");
       assert.include(names, "RedeemEvent");
       assert.include(names, "CircuitBreakerTriggered");
       assert.include(names, "AddLiquidityEvent");
+      assert.include(names, "WithdrawFeesEvent");
+      assert.include(names, "RemoveLiquidityEvent");
+      assert.include(names, "ProposeAuthorityEvent");
+      assert.include(names, "TransferAuthorityEvent");
+      assert.include(names, "PauseEvent");
+      assert.include(names, "UpdateFeeEvent");
+      assert.include(names, "UpdateKEvent");
+      assert.include(names, "FundingAccruedEvent");
+      assert.include(names, "LpDepositEvent");
+      assert.include(names, "LpWithdrawEvent");
+      assert.include(names, "LpFeeClaimedEvent");
+      assert.include(names, "FundingDistributedEvent");
     });
 
     it("mint instruction has min_tokens_out parameter (slippage protection)", () => {
@@ -320,6 +342,21 @@ describe("solshort", () => {
       assert.include(accounts, "pool_state");
       assert.include(accounts, "authority");
       assert.include(accounts, "new_authority");
+    });
+
+    it("accept_authority instruction has new_authority signer", () => {
+      const aa = IDL.instructions.find((i: any) => i.name === "accept_authority");
+      assert.ok(aa, "accept_authority should exist");
+      const accounts = aa.accounts.map((a: any) => a.name);
+      assert.include(accounts, "pool_state");
+      assert.include(accounts, "new_authority");
+    });
+
+    it("PoolState has pending_authority field", () => {
+      const poolType = IDL.types.find((t: any) => t.name === "PoolState");
+      assert.ok(poolType, "PoolState type should exist");
+      const fieldNames = poolType.type.fields.map((f: any) => f.name);
+      assert.include(fieldNames, "pending_authority");
     });
   });
 

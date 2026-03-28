@@ -58,7 +58,9 @@ fn get_validated_price_inner(
     // Price must be positive
     require!(price_data.price > 0, SolshortError::PriceBelowMinimum);
 
-    let raw_price = price_data.price as u64;
+    let raw_price: u64 = price_data.price
+        .try_into()
+        .map_err(|_| error!(SolshortError::MathOverflow))?;
     let expo = price_data.exponent;
 
     // Convert Pyth price to PRICE_PRECISION (1e9)

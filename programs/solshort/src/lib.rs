@@ -74,9 +74,25 @@ pub mod solshort {
     pub fn remove_liquidity(
         ctx: Context<RemoveLiquidity>,
         pool_id: String,
-        usdc_amount: u64,
+        lp_shares_amount: u64,
     ) -> Result<()> {
-        instructions::remove_liquidity::handler(ctx, pool_id, usdc_amount)
+        instructions::remove_liquidity::handler(ctx, pool_id, lp_shares_amount)
+    }
+
+    pub fn initialize_lp(
+        ctx: Context<InitializeLp>,
+        pool_id: String,
+        min_lp_deposit: u64,
+    ) -> Result<()> {
+        instructions::initialize_lp::handler(ctx, pool_id, min_lp_deposit)
+    }
+
+    pub fn migrate_pool(ctx: Context<MigratePool>, pool_id: String) -> Result<()> {
+        instructions::migrate_pool::handler(ctx, pool_id)
+    }
+
+    pub fn claim_lp_fees(ctx: Context<ClaimLpFees>, pool_id: String) -> Result<()> {
+        instructions::claim_lp_fees::handler(ctx, pool_id)
     }
 
     pub fn transfer_authority(
@@ -84,6 +100,13 @@ pub mod solshort {
         pool_id: String,
     ) -> Result<()> {
         instructions::transfer_authority::handler(ctx, pool_id)
+    }
+
+    pub fn accept_authority(
+        ctx: Context<AcceptAuthority>,
+        pool_id: String,
+    ) -> Result<()> {
+        instructions::accept_authority::handler(ctx, pool_id)
     }
 
     pub fn update_fee(
@@ -112,5 +135,13 @@ pub mod solshort {
         new_rate_bps: u16,
     ) -> Result<()> {
         instructions::accrue_funding::update_funding_rate_handler(ctx, pool_id, new_rate_bps)
+    }
+
+    pub fn update_min_lp_deposit(
+        ctx: Context<UpdateMinLpDeposit>,
+        pool_id: String,
+        new_min_lp_deposit: u64,
+    ) -> Result<()> {
+        instructions::update_min_lp_deposit::handler(ctx, pool_id, new_min_lp_deposit)
     }
 }

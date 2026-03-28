@@ -32,4 +32,14 @@ pub enum SolshortError {
     InvalidPoolId,
     #[msg("Slippage tolerance exceeded")]
     SlippageExceeded,
+    #[msg("No pending authority — call transfer_authority first")]
+    NoPendingAuthority,
+    #[msg("Deposit below minimum LP amount")]
+    BelowMinLpDeposit,
+    #[msg("LP system not initialized — call initialize_lp first")]
+    LpNotInitialized,
+    #[msg("No fees to claim")]
+    NoFeesToClaim,
+    #[msg("Insufficient LP shares")]
+    InsufficientLpShares,
 }

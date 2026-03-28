@@ -50,18 +50,25 @@ Break-even: SOL moves ±4% (to cover 0.08% roundtrip fee).
 │  Pyth Network (pull oracle, 400ms)      │
 ├─────────────────────────────────────────┤
 │  Solana Program (Anchor 0.32.1, Rust)   │
-│  ├── initialize       — pool setup      │
-│  ├── mint             — USDC → shortSOL │
-│  ├── redeem           — shortSOL → USDC │
-│  ├── update_price     — refresh oracle  │
-│  ├── add_liquidity    — vault topup     │
-│  ├── remove_liquidity — vault withdraw  │
-│  ├── withdraw_fees    — fee collection  │
-│  ├── update_k         — recalibrate     │
-│  ├── update_fee       — adjust fee bps  │
-│  ├── set_pause        — emergency halt  │
-│  ├── create_metadata  — SPL metadata    │
-│  └── transfer_authority — admin handoff │
+│  User instructions                      │
+│  ├── mint               — USDC → shortSOL │
+│  ├── redeem             — shortSOL → USDC │
+│  ├── update_price       — refresh oracle  │
+│  Admin instructions                     │
+│  ├── initialize         — pool setup      │
+│  ├── add_liquidity      — vault topup     │
+│  ├── remove_liquidity   — vault withdraw  │
+│  ├── withdraw_fees      — fee collection  │
+│  ├── update_k           — recalibrate k   │
+│  ├── update_fee         — adjust fee bps  │
+│  ├── set_pause          — emergency halt  │
+│  ├── create_metadata    — SPL metadata    │
+│  ├── transfer_authority — propose handoff │
+│  ├── accept_authority   — confirm handoff │
+│  Funding Rate                           │
+│  ├── initialize_funding — setup k-decay  │
+│  ├── accrue_funding     — apply decay    │
+│  └── update_funding_rate — change rate   │
 └─────────────────────────────────────────┘
 ```
 
@@ -72,9 +79,32 @@ Break-even: SOL moves ±4% (to cover 0.08% roundtrip fee).
 3. **Deviation** — change vs cached price < 15%
 4. **Floor** — SOL price > $1.00
 
+## Funding Rate
+
+The protocol charges a continuous **k-decay** funding rate to compensate the vault for holding collateral:
+
+```
+k_new = k_old × (denom − rate_bps × elapsed_secs) / denom
+where denom = SECS_PER_DAY × 10,000
+```
+
+- Default rate: **10 bps/day** (~30.6% compound/year)
+- Max rate: **100 bps/day** (~97% compound/year)
+- Applied automatically on every mint/redeem (inline, no keeper dependency)
+- Hard cap: max **30 days** per `accrue_funding` call — prevents k→0 from keeper downtime
+- Permissionless keeper: `scripts/keeper.ts` calls `accrue_funding` periodically
+
+### Two-Step Authority Transfer
+
+Admin key handoff is atomic and safe:
+1. `transfer_authority` — current admin proposes a new authority (stores `pending_authority`)
+2. `accept_authority` — new authority signs to confirm; previous key is invalidated
+
 ## Circuit Breaker
 
 Auto-pauses the pool if vault coverage drops below 95% of obligations. Protects users from bank runs during extreme SOL price drops.
+
+Admin withdrawals (`remove_liquidity`, `withdraw_fees`) are limited to keep vault at ≥110% of obligations — providing a 15% buffer before the circuit breaker triggers.
 
 ## Tech Stack
 
@@ -107,6 +137,12 @@ anchor deploy
 
 # Initialize pool (requires scripts/)
 npx ts-node scripts/initialize-pool.ts
+
+# (Optional) Initialize funding rate — 10 bps/day k-decay
+npx ts-node scripts/initialize-pool.ts  # sets up FundingConfig
+
+# Run funding keeper (calls accrue_funding every hour)
+npx ts-node scripts/keeper.ts
 ```
 
 ### Run Frontend
@@ -135,13 +171,13 @@ Open [localhost:5173](http://localhost:5173), connect wallet, and mint shortSOL.
 ```
 programs/solshort/src/
   ├── lib.rs              — program entry
-  ├── state.rs            — PoolState account
+  ├── state.rs            — PoolState + FundingConfig accounts
   ├── constants.rs        — math constants, oracle config
   ├── oracle.rs           — Pyth price validation
   ├── fees.rs             — dynamic fee calculation
-  ├── errors.rs           — 15 error codes
-  ├── events.rs           — 7 event types
-  └── instructions/       — 12 instruction handlers
+  ├── errors.rs           — 16 error codes
+  ├── events.rs           — 12 event types
+  └── instructions/       — 16 instruction handlers
 
 app/src/
   ├── components/         — React UI components

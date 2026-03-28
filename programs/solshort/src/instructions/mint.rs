@@ -5,9 +5,10 @@ use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use crate::constants::*;
 use crate::errors::SolshortError;
 use crate::events::MintEvent;
-use crate::fees::calc_dynamic_fee;
+use crate::fees::{accumulate_fee, calc_dynamic_fee};
+use crate::instructions::accrue_funding::apply_funding_inline;
 use crate::oracle::get_validated_price;
-use crate::state::PoolState;
+use crate::state::{FundingConfig, PoolState};
 
 #[derive(Accounts)]
 #[instruction(pool_id: String)]
@@ -62,23 +63,38 @@ pub struct MintShortSol<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
+    /// Опциональный FundingConfig — если передан, фандинг применяется инлайн
+    /// перед вычислением shortsol_price. Если не передан, k остаётся текущим.
+    #[account(
+        mut,
+        seeds = [FUNDING_SEED, pool_state.key().as_ref()],
+        bump,
+    )]
+    pub funding_config: Option<Account<'info, FundingConfig>>,
+
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
 pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64, min_tokens_out: u64) -> Result<()> {
-    let pool = &mut ctx.accounts.pool_state;
-    require!(!pool.paused, SolshortError::Paused);
+    require!(!ctx.accounts.pool_state.paused, SolshortError::Paused);
     require!(usdc_amount > 0, SolshortError::AmountTooSmall);
 
     // Rate limit check
     let clock = Clock::get()?;
-    if pool.last_oracle_timestamp > 0 {
+    if ctx.accounts.pool_state.last_oracle_timestamp > 0 {
         require!(
-            clock.unix_timestamp - pool.last_oracle_timestamp >= MIN_ACTION_INTERVAL_SECS,
+            clock.unix_timestamp - ctx.accounts.pool_state.last_oracle_timestamp >= MIN_ACTION_INTERVAL_SECS,
             SolshortError::RateLimitExceeded
         );
     }
+
+    // Применяем фандинг инлайн если FundingConfig передан
+    if let Some(funding) = &mut ctx.accounts.funding_config {
+        apply_funding_inline(&mut ctx.accounts.pool_state, funding, clock.unix_timestamp)?;
+    }
+
+    let pool = &mut ctx.accounts.pool_state;
 
     // 1. Get validated oracle price
     let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price)?;
@@ -178,6 +194,9 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64, mi
         .ok_or(error!(SolshortError::MathOverflow))?;
     pool.last_oracle_price = sol_price;
     pool.last_oracle_timestamp = oracle.timestamp;
+
+    // 8a. Распределяем fee LP провайдерам через accumulator
+    accumulate_fee(pool, fee_amount)?;
 
     // 9. Emit event
     emit!(MintEvent {

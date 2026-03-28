@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
 #[account]
+#[derive(InitSpace)]
 pub struct FundingConfig {
     /// Funding rate in basis points per day (e.g. 10 = 0.10%/day)
     pub rate_bps: u16,
@@ -11,7 +12,7 @@ pub struct FundingConfig {
 }
 
 impl FundingConfig {
-    pub const LEN: usize = 8 + 2 + 8 + 1;
+    pub const LEN: usize = 8 + Self::INIT_SPACE;
 }
 
 #[account]
@@ -47,4 +48,45 @@ pub struct PoolState {
     pub bump: u8,
     /// Mint authority bump seed
     pub mint_auth_bump: u8,
+    /// Pending authority for two-step transfer (default = нет pending)
+    pub pending_authority: Pubkey,
+
+    // ─── LP система ───────────────────────────────────────────────────────────
+
+    /// LP token SPL mint PDA (["lp_mint", pool_state])
+    pub lp_mint: Pubkey,
+    /// Зеркало lp_mint.supply — синхронизируется через reload после mint/burn
+    pub lp_total_supply: u64,
+    /// Глобальный аккумулятор fees per LP share (scaled × SHARE_PRECISION = 1e12)
+    /// Растёт при каждом mint/redeem/accrue_funding
+    pub fee_per_share_accumulated: u128,
+    /// Сумма USDC внесённая LP провайдерами (principal, без накопленных fees)
+    pub lp_principal: u64,
+    /// Минимальный депозит LP в USDC base units
+    pub min_lp_deposit: u64,
+    /// Суммарные pending fees всех LP (для защиты admin withdraw_fees)
+    pub total_lp_fees_pending: u64,
+}
+
+/// Позиция LP провайдера в конкретном пуле.
+/// PDA seeds: ["lp_position", pool_state, owner]
+#[account]
+#[derive(InitSpace)]
+pub struct LpPosition {
+    /// Владелец позиции
+    pub owner: Pubkey,
+    /// Пул к которому привязана позиция
+    pub pool: Pubkey,
+    /// Количество LP токенов у данного провайдера
+    pub lp_shares: u64,
+    /// Снимок fee_per_share_accumulated на момент последнего settle
+    pub fee_per_share_checkpoint: u128,
+    /// Начисленные но ещё не claimed USDC fees
+    pub pending_fees: u64,
+    /// PDA bump
+    pub bump: u8,
+}
+
+impl LpPosition {
+    pub const LEN: usize = 8 + Self::INIT_SPACE;
 }

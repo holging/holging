@@ -1,9 +1,11 @@
 use anchor_lang::prelude::*;
 
 use crate::constants::*;
-use crate::events::TransferAuthorityEvent;
+use crate::events::ProposeAuthorityEvent;
 use crate::state::PoolState;
 
+/// Шаг 1 из 2: текущий authority предлагает нового.
+/// Новый authority должен принять через accept_authority.
 #[derive(Accounts)]
 #[instruction(pool_id: String)]
 pub struct TransferAuthority<'info> {
@@ -17,17 +19,16 @@ pub struct TransferAuthority<'info> {
 
     pub authority: Signer<'info>,
 
-    /// CHECK: New authority, validated by being passed explicitly
+    /// CHECK: Предлагаемый новый authority
     pub new_authority: UncheckedAccount<'info>,
 }
 
 pub fn handler(ctx: Context<TransferAuthority>, _pool_id: String) -> Result<()> {
-    let old = ctx.accounts.pool_state.authority;
-    ctx.accounts.pool_state.authority = ctx.accounts.new_authority.key();
+    ctx.accounts.pool_state.pending_authority = ctx.accounts.new_authority.key();
 
-    emit!(TransferAuthorityEvent {
-        old_authority: old,
-        new_authority: ctx.accounts.new_authority.key(),
+    emit!(ProposeAuthorityEvent {
+        current_authority: ctx.accounts.authority.key(),
+        proposed_authority: ctx.accounts.new_authority.key(),
     });
     Ok(())
 }

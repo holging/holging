@@ -4,8 +4,18 @@ pub const PRICE_PRECISION: u64 = 1_000_000_000;
 /// Seconds in a day
 pub const SECS_PER_DAY: u64 = 86_400;
 
-/// Max funding rate: 100 bps/day = 1%/day
+/// Max funding rate: 100 bps/day = 1%/day ≈ 97% compound/year
+/// При 10 bps/день: ~0.1%/день → ~30.6% compound/year (не 3.7%)
 pub const MAX_FUNDING_RATE_BPS: u16 = 100;
+
+/// Максимальный elapsed за один вызов accrue_funding (30 дней).
+/// Защищает от обнуления k при длительном простое keeper'а.
+/// Если elapsed > 30 дней — остаток переносится на следующий вызов.
+pub const MAX_FUNDING_ELAPSED_SECS: u64 = SECS_PER_DAY * 30;
+
+/// Минимальный vault после вывода ликвидности или фис (110% обязательств).
+/// Даёт 15% буфер выше circuit breaker (MIN_VAULT_RATIO_BPS = 95%).
+pub const MIN_VAULT_POST_WITHDRAWAL_BPS: u64 = 11_000;
 
 /// PDA seed for FundingConfig
 pub const FUNDING_SEED: &[u8] = b"funding";
@@ -16,8 +26,8 @@ pub const USDC_DECIMALS: u8 = 6;
 /// shortSOL token has 9 decimals (matching SOL)
 pub const SHORTSOL_DECIMALS: u8 = 9;
 
-/// Default fee: 10 basis points = 0.1% per side (0.2% roundtrip)
-pub const DEFAULT_FEE_BPS: u16 = 10;
+/// Default fee: 4 basis points = 0.04% per side (0.08% roundtrip)
+pub const DEFAULT_FEE_BPS: u16 = 4;
 
 /// Maximum oracle price staleness in seconds (120s for devnet, tighten for mainnet)
 pub const MAX_STALENESS_SECS: u64 = 120;
@@ -55,3 +65,14 @@ pub const POOL_SEED: &[u8] = b"pool";
 pub const VAULT_SEED: &[u8] = b"vault";
 pub const MINT_AUTH_SEED: &[u8] = b"mint_auth";
 pub const SHORTSOL_MINT_SEED: &[u8] = b"shortsol_mint";
+pub const LP_MINT_SEED: &[u8] = b"lp_mint";
+pub const LP_POSITION_SEED: &[u8] = b"lp_position";
+
+/// LP token decimals (matches USDC for easy share calculation)
+pub const LP_TOKEN_DECIMALS: u8 = 6;
+
+/// Fee accumulator precision multiplier (1e12) — prevents dust loss in per-share math
+pub const SHARE_PRECISION: u128 = 1_000_000_000_000;
+
+/// Minimum LP deposit in USDC base units ($100 = 100 × 10^6)
+pub const MIN_LP_DEPOSIT: u64 = 100_000_000;

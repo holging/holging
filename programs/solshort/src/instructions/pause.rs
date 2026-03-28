@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::constants::*;
+use crate::events::PauseEvent;
 use crate::state::PoolState;
 
 #[derive(Accounts)]
@@ -19,6 +20,9 @@ pub struct SetPause<'info> {
 
 pub fn handler(ctx: Context<SetPause>, _pool_id: String, paused: bool) -> Result<()> {
     ctx.accounts.pool_state.paused = paused;
-    msg!("Pool paused: {}", paused);
+    emit!(PauseEvent {
+        paused,
+        authority: ctx.accounts.authority.key(),
+    });
     Ok(())
 }

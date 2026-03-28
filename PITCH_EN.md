@@ -60,8 +60,11 @@ Paradigm Research confirms: "Everything Is A Perp" — the market is moving towa
 
 ## Traction
 
-- **12 instructions** deployed on Solana Devnet
+- **16 instructions** deployed on Solana Devnet (16 error codes, 12 event types)
 - **Dynamic fees** (5-50 bps based on vault health)
+- **Funding rate** — k-decay 10 bps/day (~30.6%/year); applied inline on mint/redeem, no keeper dependency
+- **Two-step authority transfer** — propose + accept pattern, atomic and safe
+- **Withdrawal floor 110%** — admin cannot drain vault below 110% of obligations
 - **Circuit breaker** (auto-pause at vault ratio < 95%)
 - **4-layer oracle validation** (Pyth Network)
 - **Vault reconciliation** (post-CPI balance verification)
@@ -93,10 +96,11 @@ Paradigm Research confirms: "Everything Is A Perp" — the market is moving towa
 | Layer | Technology |
 |-------|-----------|
 | Blockchain | Solana (400ms finality, $0.001/tx) |
-| Smart Contract | Anchor 0.32.1 (Rust), 12 instructions |
+| Smart Contract | Anchor 0.32.1 (Rust), 16 instructions |
 | Oracle | Pyth Network (pull-based, 400ms) |
 | Frontend | React 19 + Vite 7 + TypeScript |
 | Formal Verification | Lean 4 + Mathlib (8 theorems) |
+| Keeper | Node.js (scripts/keeper.ts), permissionless |
 | Hosting | Netlify |
 
 ---
@@ -164,13 +168,13 @@ Mint **replenishes** the vault (user deposits USDC). Blocking mint = blocking li
 ### Security
 
 **Q: What about audit?**
-Devnet MVP. Audit planned before mainnet (OtterSec/Neodyme, $50K budget). Current protections: checked arithmetic everywhere, 4-layer oracle validation, circuit breaker, rate limiting, vault reconciliation, slippage protection, dynamic fees, 15 error codes.
+Devnet MVP. Audit planned before mainnet (OtterSec/Neodyme, $50K budget). Current protections: checked arithmetic everywhere, 4-layer oracle validation, circuit breaker, rate limiting, vault reconciliation, slippage protection, dynamic fees, funding rate, two-step authority transfer, 16 error codes.
 
 **Q: Oracle manipulation?**
 Pyth Network pull-based, 400ms. 4-layer validation: staleness (120s), confidence (<2%), deviation (<15% mint/redeem, <50% update_price), floor ($1). Rate limiting (2s cooldown) prevents sandwich attacks. `update_price` does not reset rate limit timer.
 
 **Q: Single admin key?**
-`transfer_authority` instruction already implemented. Squads v4 multisig integration planned for Q1 2026 before mainnet.
+Two-step `transfer_authority` + `accept_authority` already implemented — new key must sign to confirm. Squads v4 multisig integration planned for Q1 2026 before mainnet.
 
 **Q: Circuit breaker pauses when users need to redeem most?**
 Circuit breaker protects against bank runs — without it, first redeemer takes all, others get nothing. Like FDIC insurance — limits withdrawal to protect everyone. Solution: deeper overcollateralization (vault ≥ 200-500% obligations).
@@ -181,7 +185,7 @@ Circuit breaker protects against bank runs — without it, first redeemer takes 
 Lean 4 is the industry standard for machine-checked proofs (used by Microsoft, AWS). 8 theorems prove holging P&L ≥ 0, pricing invariant, positive gamma. No DeFi protocol on Solana has published formal proofs. Competitive advantage for audit and investor confidence.
 
 **Q: Does the architecture scale to multi-asset?**
-Yes. `pool_id` is parameterized across all 12 instructions. For shortBTC: new Pyth feed + frontend pool selector. Architecture ready, code changes = 1 day.
+Yes. `pool_id` is parameterized across all 16 instructions. For shortBTC: new Pyth feed + frontend pool selector. Architecture ready, code changes = 1 day.
 
 ### Market
 

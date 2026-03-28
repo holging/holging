@@ -20,10 +20,14 @@ SolShort is a tokenized inverse-exposure protocol on Solana. Users deposit USDC 
 | `BPS_DENOMINATOR` | 10,000 | Basis points denominator |
 | `DEFAULT_FEE_BPS` | 4 | 0.04% fee |
 | `MIN_VAULT_RATIO_BPS` | 9,500 | Circuit breaker at 95% |
+| `MIN_VAULT_POST_WITHDRAWAL_BPS` | 11,000 | Admin withdrawal floor at 110% |
 | `MAX_PRICE_DEVIATION_BPS` | 1,500 | 15% max deviation from cache |
 | `MAX_CONFIDENCE_PCT` | 2 | 2% oracle confidence interval |
-| `MAX_STALENESS_SECS` | 30 | 30s oracle freshness |
+| `MAX_STALENESS_SECS` | 120 | 120s oracle freshness (devnet) |
 | `MIN_PRICE` | 10⁹ | Floor: $1.00 SOL |
+| `SECS_PER_DAY` | 86,400 | Seconds per day (funding rate denominator) |
+| `MAX_FUNDING_RATE_BPS` | 100 | Max k-decay: 1%/day ≈ 97% compound/year |
+| `MAX_FUNDING_ELAPSED_SECS` | 2,592,000 | Max elapsed per `accrue_funding` call (30 days) |
 
 ---
 
@@ -177,7 +181,7 @@ $$
 
 | Guard | Condition | Error |
 |-------|-----------|-------|
-| Staleness | age > 30s | `StaleOracle` |
+| Staleness | age > 120s | `StaleOracle` |
 | Confidence | conf > 2% of price | `OracleConfidenceTooWide` |
 | Deviation | Δ > 15% from cache | `PriceDeviationTooHigh` |
 | Floor | price < $1.00 | `PriceBelowMinimum` |
@@ -325,7 +329,8 @@ Used in both mint (multiply) and redeem (divide) to bridge the decimal gap.
 ```
 PoolState {
     authority:            Pubkey     // Admin key
-    k:                    u128       // Pricing constant
+    pending_authority:    Pubkey     // Proposed new admin (two-step transfer)
+    k:                    u128       // Pricing constant (k-decay applied by funding rate)
     fee_bps:              u16        // Fee in basis points
     total_minted:         u64        // Cumulative tokens minted
     total_redeemed:       u64        // Cumulative tokens redeemed
@@ -339,6 +344,12 @@ PoolState {
     last_oracle_timestamp: i64       // Cache timestamp
     bump:                 u8         // Pool PDA bump
     mint_auth_bump:       u8         // Mint authority PDA bump
+}
+
+FundingConfig {
+    rate_bps:        u16   // k-decay rate in bps/day (0 = disabled)
+    last_funding_at: i64   // Unix timestamp of last accrual
+    bump:            u8    // PDA bump
 }
 ```
 
@@ -360,6 +371,7 @@ vault_balance ≥ Σ(fees)  (fees never leave the vault)
 | shortSOL Mint | `["shortsol_mint", pool_id]` | Token mint |
 | Mint Authority | `["mint_auth", pool_id]` | Signer for minting |
 | USDC Vault | `["vault", usdc_mint, pool_id]` | Holds deposited USDC |
+| Funding Config | `["funding", pool_state_pubkey]` | k-decay rate + timestamp |
 
 ---
 
@@ -371,38 +383,91 @@ vault_balance ≥ Σ(fees)  (fees never leave the vault)
 | 6001 | `StaleOracle` | Price > 30s old |
 | 6002 | `OracleConfidenceTooWide` | Confidence > 2% |
 | 6003 | `PriceDeviationTooHigh` | Δ > 15% from cache |
-| 6004 | `InsufficientLiquidity` | Vault can't cover redemption |
+| 6004 | `InsufficientLiquidity` | Vault can't cover redemption or withdrawal |
 | 6005 | `AmountTooSmall` | Amount = 0 or tokens = 0 |
 | 6006 | `CircuitBreaker` | Vault ratio < 95% |
-| 6007 | `RateLimitExceeded` | (Reserved) |
+| 6007 | `RateLimitExceeded` | 2s cooldown between user actions |
 | 6008 | `PriceBelowMinimum` | SOL < $1.00 |
 | 6009 | `MathOverflow` | Arithmetic overflow |
 | 6010 | `Unauthorized` | Wrong authority |
-| 6011 | `InvalidFee` | fee_bps > 100 |
-| 6012 | `CirculatingNotZero` | Can't update k with supply |
+| 6011 | `InvalidFee` | fee_bps > 100 or rate_bps > MAX_FUNDING_RATE_BPS |
+| 6012 | `CirculatingNotZero` | Can't update k with supply > 0 |
+| 6013 | `InvalidPoolId` | Pool ID exceeds 32 bytes |
+| 6014 | `SlippageExceeded` | Output below min_tokens_out / min_usdc_out |
+| 6015 | `NoPendingAuthority` | `accept_authority` called before `transfer_authority` |
 
 ---
 
 ## 12. Events
 
-### MintEvent
+### User Events
 ```
-{ user, usdc_in, tokens_out, sol_price, shortsol_price, fee, timestamp }
-```
-
-### RedeemEvent
-```
-{ user, tokens_in, usdc_out, sol_price, shortsol_price, fee, timestamp }
+MintEvent        { user, usdc_in, tokens_out, sol_price, shortsol_price, fee, timestamp }
+RedeemEvent      { user, tokens_in, usdc_out, sol_price, shortsol_price, fee, timestamp }
+CircuitBreakerTriggered { vault_ratio_bps, timestamp }
 ```
 
-### CircuitBreakerTriggered
+### Admin Events
 ```
-{ vault_ratio_bps, timestamp }
+AddLiquidityEvent    { authority, usdc_amount, new_vault_balance }
+WithdrawFeesEvent    { authority, amount, remaining_vault }
+RemoveLiquidityEvent { authority, usdc_amount, remaining_vault }
+PauseEvent           { paused, authority }
+UpdateFeeEvent       { old_fee_bps, new_fee_bps, authority }
+UpdateKEvent         { new_k, authority }
+ProposeAuthorityEvent   { current_authority, proposed_authority }
+TransferAuthorityEvent  { old_authority, new_authority }
+```
+
+### Funding Events
+```
+FundingAccruedEvent  { k_before, k_after, elapsed_secs, rate_bps, timestamp }
 ```
 
 ---
 
-## 13. Risk Analysis
+## 13. Funding Rate (k-Decay)
+
+### 13.1 Mechanism
+
+The protocol charges a continuous funding rate by decaying `k` over time. This compensates the vault for the asymmetric payout structure (shortSOL holders profit from SOL drops, but vault absorbs the loss).
+
+$$
+k_{\text{new}} = k_{\text{old}} \times \frac{\text{denom} - \text{rate\_bps} \times \text{elapsed\_to\_apply}}{\text{denom}}
+$$
+
+$$
+\text{denom} = \text{SECS\_PER\_DAY} \times \text{BPS\_DENOM} = 86{,}400 \times 10{,}000 = 864{,}000{,}000
+$$
+
+### 13.2 Rate Examples
+
+| rate_bps/day | Daily decay | Compound/year |
+|---|---|---|
+| 1 | 0.01% | 3.5% |
+| 10 | 0.10% | 30.6% |
+| 50 | 0.50% | 83.9% |
+| 100 | 1.00% | 97.4% |
+
+### 13.3 Keeper-Independence
+
+Funding is applied **inline** on every `mint` and `redeem` call (if `FundingConfig` is passed as an optional account). This ensures users always trade at the current k, regardless of keeper activity.
+
+### 13.4 k→0 Protection
+
+A hard cap of **30 days** (`MAX_FUNDING_ELAPSED_SECS`) per `accrue_funding` call prevents k from collapsing to zero during keeper downtime. The timestamp advances by `elapsed_to_apply`, not by `now` — uncapped time carries over to the next call.
+
+$$
+\text{elapsed\_to\_apply} = \min(\text{elapsed}, \text{MAX\_FUNDING\_ELAPSED\_SECS})
+$$
+
+### 13.5 Effect on shortSOL Price
+
+Since `shortSOL_price = k × 10⁹ / SOL_price`, a smaller k means a lower shortSOL price for the same SOL price. Holders who do not redeem gradually lose value through the funding rate — analogous to a perpetual funding rate in perp markets.
+
+---
+
+## 14. Risk Analysis
 
 ### 13.1 Vault Insolvency
 
@@ -437,17 +502,20 @@ Break-even: $\epsilon^2 / 2 > 0.0008 \implies |\epsilon| > 4\%$
 
 ---
 
-## 14. Formula Quick Reference
+## 15. Formula Quick Reference
 
 | What | Formula |
 |------|---------|
 | shortSOL price | $k \times 10^9 / P_{\text{SOL}}$ |
 | k (init) | $P_0^2 / 10^9$ |
+| k (decay) | $k_{\text{old}} \times (\text{denom} - \text{rate} \times \text{elapsed}) / \text{denom}$ |
+| Funding denom | $86{,}400 \times 10{,}000 = 864{,}000{,}000$ |
 | Mint fee | $\text{amount} \times \text{fee\_bps} / 10{,}000$ |
 | Tokens out | $\text{effective} \times 10^3 \times 10^9 / \text{ssPrice}$ |
 | USDC out | $\text{tokens} \times \text{ssPrice} / 10^9 / 10^3$ |
 | Holging V(x) | $(x + 1/x) / 2$ |
 | Holging P&L | $(x - 1)^2 / (2x)$ |
 | Vault ratio | $\text{vault} \times 10{,}000 / \text{obligations}$ |
+| Withdrawal floor | $\text{obligations} \times 11{,}000 / 10{,}000$ |
 | Confidence | $\text{conf} \times 100 / \text{price} < 2\%$ |
 | Deviation | $|\Delta| \times 10{,}000 / \text{cached} \leq 1{,}500$ |

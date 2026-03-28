@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::constants::*;
 use crate::errors::SolshortError;
+use crate::events::UpdateKEvent;
 use crate::state::PoolState;
 
 #[derive(Accounts)]
@@ -25,6 +26,9 @@ pub fn handler(ctx: Context<UpdateK>, _pool_id: String, new_k: u128) -> Result<(
         SolshortError::CirculatingNotZero
     );
     ctx.accounts.pool_state.k = new_k;
-    msg!("k updated to {}", new_k);
+    emit!(UpdateKEvent {
+        new_k,
+        authority: ctx.accounts.authority.key(),
+    });
     Ok(())
 }

@@ -55,10 +55,23 @@ pub fn handler(ctx: Context<WithdrawFees>, _pool_id: String, amount: u64) -> Res
 
     let obligations = calc_obligations(pool.circulating, pool.k, sol_price)?;
 
-    // Withdrawable = vault_balance - obligations (must keep 100% coverage)
+    // Withdrawable = vault_balance - min_vault (110% coverage), буфер 15% до circuit breaker
+    let min_vault = (obligations as u128)
+        .checked_mul(MIN_VAULT_POST_WITHDRAWAL_BPS as u128)
+        .ok_or(error!(SolshortError::MathOverflow))?
+        .checked_div(BPS_DENOMINATOR as u128)
+        .ok_or(error!(SolshortError::MathOverflow))? as u64;
+    // Защищаем LP principal и pending fees от вывода администратором
+    let lp_reserved = pool
+        .lp_principal
+        .checked_add(pool.total_lp_fees_pending)
+        .ok_or(error!(SolshortError::MathOverflow))?;
+    let protected = min_vault
+        .checked_add(lp_reserved)
+        .ok_or(error!(SolshortError::MathOverflow))?;
     let withdrawable = pool
         .vault_balance
-        .checked_sub(obligations)
+        .checked_sub(protected)
         .ok_or(error!(SolshortError::InsufficientLiquidity))?;
 
     require!(amount <= withdrawable, SolshortError::InsufficientLiquidity);
@@ -83,6 +96,14 @@ pub fn handler(ctx: Context<WithdrawFees>, _pool_id: String, amount: u64) -> Res
         .vault_balance
         .checked_sub(amount)
         .ok_or(error!(SolshortError::MathOverflow))?;
+
+    // Reconcile: verify actual vault token balance matches expectation
+    ctx.accounts.vault_usdc.reload()?;
+    require!(
+        ctx.accounts.vault_usdc.amount >= new_vault,
+        SolshortError::InsufficientLiquidity
+    );
+
     pool.vault_balance = new_vault;
     pool.last_oracle_price = sol_price;
     pool.last_oracle_timestamp = oracle.timestamp;

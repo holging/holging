@@ -29,7 +29,14 @@ export function pythPriceToUsd(p: PythPrice): number {
 }
 
 export function pythPriceToPrecision(p: PythPrice): bigint {
-  // Convert to PRICE_PRECISION (1e9)
-  const usd = pythPriceToUsd(p);
-  return BigInt(Math.round(usd * 1e9));
+  // Convert to PRICE_PRECISION (1e9) using pure BigInt to avoid float precision loss.
+  // p.price is an integer, p.expo is typically negative (e.g. -8).
+  // Desired scale: 1e9, so exponent shift = 9 + expo (e.g. 9 + (-8) = 1).
+  const exp = 9 + p.expo;
+  const price = BigInt(p.price);
+  if (exp >= 0) {
+    return price * (10n ** BigInt(exp));
+  } else {
+    return price / (10n ** BigInt(-exp));
+  }
 }
