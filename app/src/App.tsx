@@ -15,6 +15,7 @@ import { FaucetButton } from "./components/FaucetButton";
 import { LpDashboard } from "./components/LpDashboard";
 import { usePool } from "./hooks/usePool";
 import { usePythPrice } from "./hooks/usePythPrice";
+import { POOLS, POOL_IDS, DEFAULT_POOL_ID } from "./config/pools";
 
 const USDC_MINT: string =
   import.meta.env.VITE_USDC_MINT || "CAMk3KqYMKEtoQnsDyJMmdKUfvh5wa4uYSJvUTDheeGn";
@@ -31,10 +32,12 @@ type Tab = "mint" | "redeem" | "lp" | "holging" | "holders" | "state" | "risk";
 
 function App() {
   const { connected, publicKey } = useWallet();
-  const { pool, error: poolError } = usePool();
+  const [selectedPoolId, setSelectedPoolId] = useState(DEFAULT_POOL_ID);
+  const { pool, error: poolError } = usePool(selectedPoolId);
   const { solPriceUsd } = usePythPrice();
   const [tab, setTab] = useState<Tab>("mint");
 
+  const selectedPool = POOLS[selectedPoolId];
   const lpInitialized = pool?.lpMint && pool.lpMint !== "" && pool.lpMint !== DEFAULT_PUBKEY;
 
   const walletAddr = publicKey?.toBase58();
@@ -53,6 +56,20 @@ function App() {
       </header>
 
       <main>
+        {/* Pool Selector */}
+        <div className="pool-selector">
+          {POOL_IDS.map((id) => (
+            <button
+              key={id}
+              className={`pool-btn ${selectedPoolId === id ? "active" : ""}`}
+              onClick={() => setSelectedPoolId(id)}
+            >
+              <span className="pool-icon">{POOLS[id].icon}</span>
+              <span className="pool-name">{POOLS[id].name}</span>
+            </button>
+          ))}
+        </div>
+
         <PriceDisplay />
 
         {connected && <PositionCard />}
@@ -127,10 +144,15 @@ function App() {
         {tab === "state" && <StatePage />}
         {tab === "risk" && isAdmin && <RiskDashboard />}
 
-        {poolError && (
+        {poolError && selectedPoolId === DEFAULT_POOL_ID && (
           <div className="info-banner">
             Pool not initialized yet. Deploy to devnet and run initialize-pool
             script first.
+          </div>
+        )}
+        {poolError && selectedPoolId !== DEFAULT_POOL_ID && (
+          <div className="info-banner">
+            {selectedPool.name} pool not initialized yet on devnet.
           </div>
         )}
       </main>

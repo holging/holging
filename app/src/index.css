@@ -1617,3 +1617,61 @@ footer {
     text-align: center;
   }
 }
+
+/* ─── Pool Selector ───────────────────────────────────────────────────────── */
+
+.pool-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 4px;
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.pool-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pool-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.pool-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.pool-icon {
+  font-size: 16px;
+}
+
+.pool-name {
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  .pool-selector {
+    flex-wrap: wrap;
+  }
+  .pool-btn {
+    flex: 1 1 45%;
+    padding: 8px;
+    font-size: 12px;
+  }
+}
