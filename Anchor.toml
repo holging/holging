@@ -26,3 +26,13 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
 startup_wait = 5000
 shutdown_wait = 2000
 upgradeable = false
+
+[test.validator]
+bind_address = "127.0.0.1"
+
+# Mock Pyth SOL/USD PriceUpdateV2 account for integration tests.
+# publish_time = 4102444800 (year 2100) so it is never stale.
+# Price = 17000 with exponent=-2 → $170.00 → scaled 1e9 = 170_000_000_000.
+[[test.validator.account]]
+address = "6dNYY44HhLY3qZnU6WmSNUWqn4CDBbZ5FQu7jeQujVkC"
+filename = "tests/fixtures/mock-pyth-price-update.json"

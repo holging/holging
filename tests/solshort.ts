@@ -424,3 +424,637 @@ describe("solshort", () => {
     });
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Integration tests — on-chain instructions against localnet validator
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// These tests run against a local validator (anchor test / solana-test-validator).
+// They exercise the full on-chain flow: initialize → mint → redeem → LP → fees.
+//
+// Mock Pyth oracle strategy:
+//   A pre-built PriceUpdateV2 account is loaded into the test validator via
+//   Anchor.toml [test.validator.account]. The fixture file is at:
+//     tests/fixtures/mock-pyth-price-update.json
+//
+//   The account pubkey is fixed: 6dNYY44HhLY3qZnU6WmSNUWqn4CDBbZ5FQu7jeQujVkC
+//   publish_time = 4102444800 (year 2100) — never stale under MAX_STALENESS_SECS=120.
+//   Price = 17000 with exponent=-2 → $170.00 → scaled 1e9 = 170_000_000_000.
+//   feed_id = SOL/USD ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d
+//   verification_level = Full (0x01)
+
+describe("Integration tests", () => {
+  // ── Constants ──────────────────────────────────────────────────────────────
+
+  // Fixed mock Pyth price update account loaded via Anchor.toml [test.validator.account]
+  const MOCK_PRICE_UPDATE_PUBKEY = new PublicKey(
+    "6dNYY44HhLY3qZnU6WmSNUWqn4CDBbZ5FQu7jeQujVkC"
+  );
+
+  const INT_POOL_ID = "sol_int"; // separate pool ID to avoid collision with IDL tests
+  const INT_POOL_SEED = Buffer.from("pool");
+  const INT_VAULT_SEED = Buffer.from("vault");
+  const INT_MINT_AUTH_SEED = Buffer.from("mint_auth");
+  const INT_SHORTSOL_MINT_SEED = Buffer.from("shortsol_mint");
+  const INT_LP_MINT_SEED = Buffer.from("lp_mint");
+  const INT_LP_POSITION_SEED = Buffer.from("lp_position");
+
+  // Correct Associated Token Program ID (the one deployed on localnet)
+  const SPL_ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
+    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+  );
+
+  // ── Provider & program ─────────────────────────────────────────────────────
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+  const programId = new PublicKey(IDL.address);
+  const program = new anchor.Program(IDL, provider);
+
+  // ── Actors ─────────────────────────────────────────────────────────────────
+  const authority = provider.wallet as anchor.Wallet;
+  const lpProvider = Keypair.generate();
+
+  // ── Mutable state (populated in before()) ─────────────────────────────────
+  let intUsdcMint: PublicKey;
+  let authorityUsdcAta: PublicKey;
+  let lpProviderUsdcAta: PublicKey;
+  let authorityShortsolAta: PublicKey;
+
+  // PDAs
+  let poolStatePda: PublicKey;
+  let shortsolMintPda: PublicKey;
+  let mintAuthPda: PublicKey;
+  let vaultUsdcPda: PublicKey;
+  let lpMintPda: PublicKey;
+  let lpProviderLpAta: PublicKey;
+  let lpProviderLpPositionPda: PublicKey;
+
+  // ── Setup ──────────────────────────────────────────────────────────────────
+  before(async () => {
+    // Airdrop SOL to lpProvider
+    const sig = await provider.connection.requestAirdrop(
+      lpProvider.publicKey,
+      10_000_000_000 // 10 SOL
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    // Create mock USDC mint (6 decimals)
+    intUsdcMint = await createMint(
+      provider.connection,
+      (authority as any).payer,
+      authority.publicKey,
+      null,
+      6
+    );
+
+    // Derive PDAs
+    [poolStatePda] = PublicKey.findProgramAddressSync(
+      [INT_POOL_SEED, Buffer.from(INT_POOL_ID)],
+      programId
+    );
+    [shortsolMintPda] = PublicKey.findProgramAddressSync(
+      [INT_SHORTSOL_MINT_SEED, Buffer.from(INT_POOL_ID)],
+      programId
+    );
+    [mintAuthPda] = PublicKey.findProgramAddressSync(
+      [INT_MINT_AUTH_SEED, Buffer.from(INT_POOL_ID)],
+      programId
+    );
+    [vaultUsdcPda] = PublicKey.findProgramAddressSync(
+      [INT_VAULT_SEED, intUsdcMint.toBuffer(), Buffer.from(INT_POOL_ID)],
+      programId
+    );
+    [lpMintPda] = PublicKey.findProgramAddressSync(
+      [INT_LP_MINT_SEED, poolStatePda.toBuffer()],
+      programId
+    );
+    [lpProviderLpPositionPda] = PublicKey.findProgramAddressSync(
+      [INT_LP_POSITION_SEED, poolStatePda.toBuffer(), lpProvider.publicKey.toBuffer()],
+      programId
+    );
+
+    // Create USDC ATAs for authority and lpProvider
+    const {
+      createAssociatedTokenAccountInstruction,
+      getAssociatedTokenAddress,
+    } = await import("@solana/spl-token");
+
+    authorityUsdcAta = await getAssociatedTokenAddress(
+      intUsdcMint,
+      authority.publicKey
+    );
+    await provider.sendAndConfirm(
+      new anchor.web3.Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          authority.publicKey,
+          authorityUsdcAta,
+          authority.publicKey,
+          intUsdcMint
+        )
+      ),
+      []
+    );
+
+    lpProviderUsdcAta = await getAssociatedTokenAddress(
+      intUsdcMint,
+      lpProvider.publicKey
+    );
+    await provider.sendAndConfirm(
+      new anchor.web3.Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          authority.publicKey,
+          lpProviderUsdcAta,
+          lpProvider.publicKey,
+          intUsdcMint
+        )
+      ),
+      []
+    );
+
+    // Mint 100,000 USDC (100_000 * 10^6) to each actor
+    const mintAmount = 100_000_000_000;
+    await mintTo(
+      provider.connection,
+      (authority as any).payer,
+      intUsdcMint,
+      authorityUsdcAta,
+      authority.publicKey,
+      mintAmount
+    );
+    await mintTo(
+      provider.connection,
+      (authority as any).payer,
+      intUsdcMint,
+      lpProviderUsdcAta,
+      authority.publicKey,
+      mintAmount
+    );
+
+    console.log("Integration setup complete:");
+    console.log("  Pool PDA:          ", poolStatePda.toBase58());
+    console.log("  USDC Mint:         ", intUsdcMint.toBase58());
+    console.log("  Mock Price Update: ", MOCK_PRICE_UPDATE_PUBKEY.toBase58());
+    console.log("  LP Provider:       ", lpProvider.publicKey.toBase58());
+  });
+
+  // ── Test 1: initialize pool ────────────────────────────────────────────────
+  it("initializes pool with fee_bps=4", async () => {
+    await (program.methods as any)
+      .initialize(INT_POOL_ID, 4)
+      .accounts({
+        poolState: poolStatePda,
+        shortsolMint: shortsolMintPda,
+        mintAuthority: mintAuthPda,
+        vaultUsdc: vaultUsdcPda,
+        usdcMint: intUsdcMint,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        authority: authority.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .rpc();
+
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.equal(pool.feeBps, 4, "fee_bps should be 4");
+    assert.ok(!pool.paused, "pool should not be paused after init");
+    assert.ok(pool.k.gt(new BN(0)), "k should be > 0 after init");
+    assert.ok(
+      pool.lastOraclePrice.gte(new BN(1_000_000_000)),
+      "oracle price should be >= $1 in PRICE_PRECISION"
+    );
+    assert.equal(
+      pool.shortsolMint.toBase58(),
+      shortsolMintPda.toBase58(),
+      "shortsolMint should match PDA"
+    );
+  });
+
+  // ── Test 2: mint shortSOL ─────────────────────────────────────────────────
+  it("mints shortSOL tokens when user deposits USDC", async () => {
+    const {
+      createAssociatedTokenAccountInstruction,
+      getAssociatedTokenAddress,
+    } = await import("@solana/spl-token");
+
+    // Create user shortSOL ATA — must happen after initialize (mint exists now)
+    authorityShortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+    await provider.sendAndConfirm(
+      new anchor.web3.Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          authority.publicKey,
+          authorityShortsolAta,
+          authority.publicKey,
+          shortsolMintPda
+        )
+      ),
+      []
+    );
+
+    // Wait MIN_ACTION_INTERVAL_SECS (2s) — initialize set last_oracle_timestamp
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const usdcBefore = (
+      await provider.connection.getTokenAccountBalance(authorityUsdcAta)
+    ).value.uiAmount!;
+
+    const depositUsdc = new BN(1_000_000_000); // 1,000 USDC
+    await (program.methods as any)
+      .mint(INT_POOL_ID, depositUsdc, new BN(0))
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        shortsolMint: shortsolMintPda,
+        mintAuthority: mintAuthPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        usdcMint: intUsdcMint,
+        userUsdc: authorityUsdcAta,
+        userShortsol: authorityShortsolAta,
+        user: authority.publicKey,
+        fundingConfig: null,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    const shortsolBal = (
+      await provider.connection.getTokenAccountBalance(authorityShortsolAta)
+    ).value.uiAmount!;
+    const usdcAfter = (
+      await provider.connection.getTokenAccountBalance(authorityUsdcAta)
+    ).value.uiAmount!;
+
+    assert.ok(shortsolBal > 0, "user should have received shortSOL tokens");
+    assert.ok(usdcAfter < usdcBefore, "user USDC balance should decrease after mint");
+
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(pool.circulating.gt(new BN(0)), "pool circulating supply should be > 0");
+    assert.ok(pool.vaultBalance.gt(new BN(0)), "vault balance should be > 0 after mint");
+    assert.ok(pool.totalFeesCollected.gt(new BN(0)), "fees should have been collected");
+  });
+
+  // ── Test 3: redeem shortSOL ───────────────────────────────────────────────
+  it("redeems shortSOL and returns USDC to user", async () => {
+    // Wait for rate limit (MIN_ACTION_INTERVAL_SECS = 2s)
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const shortsolBefore = (
+      await provider.connection.getTokenAccountBalance(authorityShortsolAta)
+    ).value.amount;
+    const usdcBefore = (
+      await provider.connection.getTokenAccountBalance(authorityUsdcAta)
+    ).value.uiAmount!;
+
+    const redeemAmount = new BN(shortsolBefore);
+    await (program.methods as any)
+      .redeem(INT_POOL_ID, redeemAmount, new BN(0))
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        shortsolMint: shortsolMintPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        usdcMint: intUsdcMint,
+        userShortsol: authorityShortsolAta,
+        userUsdc: authorityUsdcAta,
+        user: authority.publicKey,
+        fundingConfig: null,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    const shortsolAfter = (
+      await provider.connection.getTokenAccountBalance(authorityShortsolAta)
+    ).value.uiAmount!;
+    const usdcAfter = (
+      await provider.connection.getTokenAccountBalance(authorityUsdcAta)
+    ).value.uiAmount!;
+
+    assert.equal(shortsolAfter, 0, "all shortSOL should be burned after full redeem");
+    assert.ok(usdcAfter > usdcBefore, "user USDC balance should increase after redeem");
+
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(
+      pool.circulating.eq(new BN(0)),
+      "circulating supply should be 0 after full redeem"
+    );
+  });
+
+  // ── Test 4: initialize_lp ─────────────────────────────────────────────────
+  it("initializes LP system on existing pool", async () => {
+    const minLpDeposit = new BN(100_000_000); // 100 USDC
+
+    await (program.methods as any)
+      .initializeLp(INT_POOL_ID, minLpDeposit)
+      .accounts({
+        poolState: poolStatePda,
+        lpMint: lpMintPda,
+        authority: authority.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .rpc();
+
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.equal(
+      pool.lpMint.toBase58(),
+      lpMintPda.toBase58(),
+      "lp_mint should be set in pool state"
+    );
+    assert.equal(pool.lpTotalSupply.toNumber(), 0, "LP total supply starts at 0");
+    assert.equal(
+      pool.minLpDeposit.toNumber(),
+      100_000_000,
+      "min_lp_deposit should be 100 USDC"
+    );
+  });
+
+  // ── Test 5: add_liquidity ─────────────────────────────────────────────────
+  it("LP provider adds 10,000 USDC and receives LP tokens", async () => {
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+
+    lpProviderLpAta = await getAssociatedTokenAddress(
+      lpMintPda,
+      lpProvider.publicKey
+    );
+
+    const depositAmount = new BN(10_000_000_000); // 10,000 USDC
+
+    await (program.methods as any)
+      .addLiquidity(INT_POOL_ID, depositAmount)
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        lpMint: lpMintPda,
+        lpPosition: lpProviderLpPositionPda,
+        lpProviderLpAta: lpProviderLpAta,
+        usdcMint: intUsdcMint,
+        lpProviderUsdc: lpProviderUsdcAta,
+        lpProvider: lpProvider.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: SPL_ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([lpProvider])
+      .rpc();
+
+    const lpBal = (
+      await provider.connection.getTokenAccountBalance(lpProviderLpAta)
+    ).value.uiAmount!;
+    assert.ok(lpBal > 0, "LP provider should have received LP tokens");
+
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(pool.lpTotalSupply.gt(new BN(0)), "pool LP total supply should be > 0");
+    assert.ok(pool.lpPrincipal.gt(new BN(0)), "pool LP principal should be > 0");
+    assert.ok(
+      pool.vaultBalance.gte(depositAmount),
+      "vault balance should reflect LP deposit"
+    );
+
+    const position = await (program.account as any).lpPosition.fetch(
+      lpProviderLpPositionPda
+    );
+    assert.equal(
+      position.owner.toBase58(),
+      lpProvider.publicKey.toBase58(),
+      "LP position owner should be lpProvider"
+    );
+    assert.ok(position.lpShares.gt(new BN(0)), "LP position should have shares");
+  });
+
+  // ── Test 6: remove_liquidity ──────────────────────────────────────────────
+  it("LP provider removes half their liquidity and receives USDC back", async () => {
+    // Wait for rate limit (last_oracle_timestamp was updated by redeem in test 3)
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const positionBefore = await (program.account as any).lpPosition.fetch(
+      lpProviderLpPositionPda
+    );
+    const halfShares = positionBefore.lpShares.divn(2);
+    assert.ok(halfShares.gt(new BN(0)), "half shares should be > 0");
+
+    const usdcBefore = (
+      await provider.connection.getTokenAccountBalance(lpProviderUsdcAta)
+    ).value.uiAmount!;
+
+    await (program.methods as any)
+      .removeLiquidity(INT_POOL_ID, halfShares)
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        lpMint: lpMintPda,
+        lpPosition: lpProviderLpPositionPda,
+        lpProviderLpAta: lpProviderLpAta,
+        usdcMint: intUsdcMint,
+        lpProviderUsdc: lpProviderUsdcAta,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        lpProvider: lpProvider.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([lpProvider])
+      .rpc();
+
+    const usdcAfter = (
+      await provider.connection.getTokenAccountBalance(lpProviderUsdcAta)
+    ).value.uiAmount!;
+    assert.ok(
+      usdcAfter > usdcBefore,
+      "LP provider USDC should increase after removing liquidity"
+    );
+
+    const positionAfter = await (program.account as any).lpPosition.fetch(
+      lpProviderLpPositionPda
+    );
+    assert.ok(
+      positionAfter.lpShares.lt(positionBefore.lpShares),
+      "LP shares should decrease after removal"
+    );
+  });
+
+  // ── Test 7: claim_lp_fees ─────────────────────────────────────────────────
+  it("LP provider claims accumulated fees after mint/redeem activity", async () => {
+    // Wait for rate limit then re-mint to generate more fees
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+
+    await (program.methods as any)
+      .mint(INT_POOL_ID, new BN(1_000_000_000), new BN(0))
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        shortsolMint: shortsolMintPda,
+        mintAuthority: mintAuthPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        usdcMint: intUsdcMint,
+        userUsdc: authorityUsdcAta,
+        userShortsol: shortsolAta,
+        user: authority.publicKey,
+        fundingConfig: null,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    const usdcBefore = (
+      await provider.connection.getTokenAccountBalance(lpProviderUsdcAta)
+    ).value.uiAmount!;
+
+    // claim_lp_fees may return NoFeesToClaim if fees are below SHARE_PRECISION threshold.
+    // Both success and NoFeesToClaim are valid outcomes for this test.
+    try {
+      await (program.methods as any)
+        .claimLpFees(INT_POOL_ID)
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          lpPosition: lpProviderLpPositionPda,
+          usdcMint: intUsdcMint,
+          lpProviderUsdc: lpProviderUsdcAta,
+          lpProvider: lpProvider.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([lpProvider])
+        .rpc();
+
+      const usdcAfter = (
+        await provider.connection.getTokenAccountBalance(lpProviderUsdcAta)
+      ).value.uiAmount!;
+      assert.ok(
+        usdcAfter >= usdcBefore,
+        "LP provider USDC should not decrease after claiming fees"
+      );
+
+      const position = await (program.account as any).lpPosition.fetch(
+        lpProviderLpPositionPda
+      );
+      assert.equal(
+        position.pendingFees.toNumber(),
+        0,
+        "pending_fees should be 0 after claim"
+      );
+    } catch (err: any) {
+      const msg: string = err.message || err.toString();
+      assert.ok(
+        msg.includes("NoFeesToClaim") || msg.includes("6019"),
+        `unexpected error claiming fees: ${msg}`
+      );
+    }
+  });
+
+  // ── Test 8: pause / unpause ───────────────────────────────────────────────
+  it("pauses pool and rejects mint instruction while paused", async () => {
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, true)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    const poolPaused = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(poolPaused.paused, "pool should be paused");
+
+    // Wait rate limit then attempt mint — must fail with Paused
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+
+    let mintFailed = false;
+    try {
+      await (program.methods as any)
+        .mint(INT_POOL_ID, new BN(1_000_000_000), new BN(0))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          shortsolMint: shortsolMintPda,
+          mintAuthority: mintAuthPda,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          usdcMint: intUsdcMint,
+          userUsdc: authorityUsdcAta,
+          userShortsol: shortsolAta,
+          user: authority.publicKey,
+          fundingConfig: null,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    } catch (err: any) {
+      mintFailed = true;
+      const msg: string = err.message || err.toString();
+      assert.ok(
+        msg.includes("Paused") || msg.includes("6000"),
+        `expected Paused error, got: ${msg}`
+      );
+    }
+    assert.ok(mintFailed, "mint should have failed when pool is paused");
+
+    // Unpause
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, false)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    const poolUnpaused = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(!poolUnpaused.paused, "pool should be unpaused after set_pause(false)");
+  });
+
+  // ── Test 9: slippage protection ───────────────────────────────────────────
+  it("rejects mint when min_tokens_out exceeds expected tokens", async () => {
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+
+    // 1e18 shortSOL is impossibly large for a 1,000 USDC deposit
+    const impossiblyHighMinOut = new BN("1000000000000000000");
+
+    let slippageFailed = false;
+    try {
+      await (program.methods as any)
+        .mint(INT_POOL_ID, new BN(1_000_000_000), impossiblyHighMinOut)
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          shortsolMint: shortsolMintPda,
+          mintAuthority: mintAuthPda,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          usdcMint: intUsdcMint,
+          userUsdc: authorityUsdcAta,
+          userShortsol: shortsolAta,
+          user: authority.publicKey,
+          fundingConfig: null,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    } catch (err: any) {
+      slippageFailed = true;
+      const msg: string = err.message || err.toString();
+      assert.ok(
+        msg.includes("SlippageExceeded") || msg.includes("6008"),
+        `expected SlippageExceeded error, got: ${msg}`
+      );
+    }
+    assert.ok(slippageFailed, "mint should fail when min_tokens_out is impossibly high");
+  });
+});
