@@ -19,6 +19,13 @@ export interface PoolState {
   lastOracleTimestamp: BN;
   bump: number;
   mintAuthBump: number;
+  // LP system fields (present after initialize_lp)
+  lpMint: string;
+  lpTotalSupply: BN;
+  feePerShareAccumulated: BN;
+  lpPrincipal: BN;
+  minLpDeposit: BN;
+  totalLpFeesPending: BN;
 }
 
 export function usePool(intervalMs = 15_000) {
@@ -53,6 +60,13 @@ export function usePool(intervalMs = 15_000) {
         lastOracleTimestamp: account.lastOracleTimestamp,
         bump: account.bump,
         mintAuthBump: account.mintAuthBump,
+        // LP fields — may be absent on older pool state
+        lpMint: account.lpMint ? account.lpMint.toBase58() : "",
+        lpTotalSupply: account.lpTotalSupply ?? new BN(0),
+        feePerShareAccumulated: account.feePerShareAccumulated ?? new BN(0),
+        lpPrincipal: account.lpPrincipal ?? new BN(0),
+        minLpDeposit: account.minLpDeposit ?? new BN(0),
+        totalLpFeesPending: account.totalLpFeesPending ?? new BN(0),
       });
       setError(null);
     } catch (e: any) {

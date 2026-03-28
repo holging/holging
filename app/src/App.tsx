@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PublicKey } from "@solana/web3.js";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { PriceDisplay } from "./components/PriceDisplay";
@@ -11,21 +12,30 @@ import { RiskDashboard } from "./components/RiskDashboard";
 import { TokenHolders } from "./components/TokenHolders";
 import { StatePage } from "./components/StatePage";
 import { FaucetButton } from "./components/FaucetButton";
+import { LpDashboard } from "./components/LpDashboard";
 import { usePool } from "./hooks/usePool";
+import { usePythPrice } from "./hooks/usePythPrice";
 
-const USDC_MINT: string | null =
+const USDC_MINT: string =
   import.meta.env.VITE_USDC_MINT || "CAMk3KqYMKEtoQnsDyJMmdKUfvh5wa4uYSJvUTDheeGn";
+const USDC_MINT_PK = new PublicKey(USDC_MINT);
 const ADMIN_WALLETS = (
   import.meta.env.VITE_ADMIN_WALLETS ||
   "66HBrTxNii7eFzSTgo8mUzsij3FM7xC2L9jE2H89sDYs,FLbSeegx6UqXx4doXbtoWWoKBxRoFLrBTmQcoyeXsxjq"
 ).split(",");
 
-type Tab = "mint" | "redeem" | "holging" | "holders" | "state" | "risk";
+// Default PublicKey (all zeros) — LP not initialized
+const DEFAULT_PUBKEY = "11111111111111111111111111111111";
+
+type Tab = "mint" | "redeem" | "lp" | "holging" | "holders" | "state" | "risk";
 
 function App() {
   const { connected, publicKey } = useWallet();
   const { pool, error: poolError } = usePool();
+  const { solPriceUsd } = usePythPrice();
   const [tab, setTab] = useState<Tab>("mint");
+
+  const lpInitialized = pool?.lpMint && pool.lpMint !== "" && pool.lpMint !== DEFAULT_PUBKEY;
 
   const walletAddr = publicKey?.toBase58();
   const isAdmin =
@@ -62,6 +72,14 @@ function App() {
           >
             Redeem
           </button>
+          {lpInitialized && (
+            <button
+              className={tab === "lp" ? "active" : ""}
+              onClick={() => setTab("lp")}
+            >
+              LP
+            </button>
+          )}
           <button
             className={tab === "holging" ? "active" : ""}
             onClick={() => setTab("holging")}
@@ -97,6 +115,13 @@ function App() {
           </>
         )}
         {tab === "redeem" && <RedeemForm usdcMint={USDC_MINT} />}
+        {tab === "lp" && lpInitialized && (
+          <LpDashboard
+            pool={pool}
+            solPriceUsd={solPriceUsd ?? 0}
+            usdcMint={USDC_MINT_PK}
+          />
+        )}
         {tab === "holging" && <StrategyTerminal />}
         {tab === "holders" && <TokenHolders />}
         {tab === "state" && <StatePage />}
