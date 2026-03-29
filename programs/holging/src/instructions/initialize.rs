@@ -177,6 +177,7 @@ pub fn handler(ctx: Context<Initialize>, pool_id: String, fee_bps: u16, pyth_fee
     pool.last_oracle_timestamp = oracle.timestamp;
     pool.bump = pool_bump;
     pool.mint_auth_bump = mint_auth_bump;
+    pool.pyth_feed_id = pyth_feed_id;
 
     msg!(
         "Pool initialized: k={}, sol_price={}, fee_bps={}",

@@ -16,7 +16,7 @@ holging = "CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/solana-wallet.json"
 
 [scripts]
