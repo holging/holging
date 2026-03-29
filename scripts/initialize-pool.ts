@@ -23,11 +23,17 @@ import * as path from "path";
 
 // --- Config ---
 const DEVNET_RPC = "https://api.devnet.solana.com";
-const POOL_ID = "sol";
+const POOL_ID = process.argv[3] || "sol";
 const FEE_BPS = 4; // 0.04%
 const HERMES_URL = "https://hermes.pyth.network";
-const SOL_USD_FEED_ID =
-  "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+
+const FEED_IDS: Record<string, string> = {
+  sol:  "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+  tsla: "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
+  spy:  "19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5",
+  aapl: "49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688",
+};
+const SOL_USD_FEED_ID = FEED_IDS[POOL_ID] || FEED_IDS["sol"];
 
 // PDA seeds
 const POOL_SEED = Buffer.from("pool");

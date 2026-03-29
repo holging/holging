@@ -13,7 +13,7 @@ import {
   derivePoolPda, deriveShortsolMintPda, deriveMintAuthPda,
   deriveVaultPda, deriveFundingConfigPda, deriveLpMintPda, deriveLpPositionPda,
   fetchSolPrice, pythPriceToUsd, pythPriceToPrecision,
-  calcShortsolPrice, formatUsdc, POOL_ID, PRICE_PRECISION,
+  calcShortsolPrice, formatUsdc, DEFAULT_POOL_ID, POOLS, PRICE_PRECISION,
 } from "./utils.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -30,58 +30,32 @@ async function sendTx(tx: Transaction): Promise<string> {
   return sig;
 }
 
-/** Get the existing price_update account from pool's last oracle update.
- *  Mint/redeem use the on-chain cached price — no Pyth posting needed
- *  if update_price was called recently (by keeper or frontend). */
-async function getCachedPriceUpdate(): Promise<PublicKey> {
-  // Use pool state itself as price source — mint/redeem read from pool.last_oracle_price
-  // The price_update account must be a valid PriceUpdateV2 — we use the one already posted
-  const conn = getConnection();
-  const program = getProgram();
-  const [poolPda] = derivePoolPda();
-  const pool: any = await (program.account as any).poolState.fetch(poolPda);
-
-  // Find the most recent PriceUpdateV2 account owned by Pyth receiver
-  // For simplicity, we'll post a fresh one via raw Anchor CPI
-  // Actually, we need to use the Pyth pull oracle pattern without the SDK
-
-  // Workaround: search for existing price update accounts
-  // The Pyth receiver program creates ephemeral accounts — they expire
-  // So we need to post fresh price data
-
-  // Use Hermes HTTP API to get encoded update, then post via raw transaction
-  const resp = await fetch(
-    "https://hermes.pyth.network/v2/updates/price/latest?ids[]=ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d&encoding=hex"
-  );
-  const data: any = await resp.json();
-
-  // For now, return pool PDA as placeholder — will use updatePrice only
-  throw new Error("Direct Pyth posting requires PythSolanaReceiver SDK. Use updatePrice from frontend or keeper first.");
-}
-
 // ─── Read-only tools ─────────────────────────────────────────────────────────
 
-export async function getPoolState(): Promise<string> {
+export async function getPoolState(poolId: string = DEFAULT_POOL_ID): Promise<string> {
   const program = getProgram();
-  const [poolPda] = derivePoolPda();
+  const [poolPda] = derivePoolPda(poolId);
   const pool: any = await (program.account as any).poolState.fetch(poolPda);
-  const solPrice = await fetchSolPrice();
+  const solPrice = await fetchSolPrice(poolId);
   const solUsd = pythPriceToUsd(solPrice);
   const k = new BN(pool.k.toString());
   const solPriceBn = new BN(pythPriceToPrecision(solPrice).toString());
   const shortsolPrice = calcShortsolPrice(k, solPriceBn);
   const shortsolUsd = shortsolPrice.toNumber() / 1e9;
+  const poolName = POOLS[poolId]?.name ?? poolId;
 
   return JSON.stringify({
+    poolId,
+    poolName,
     pool: poolPda.toBase58(),
     vaultBalance: formatUsdc(new BN(pool.vaultBalance.toString())),
     vaultBalanceRaw: pool.vaultBalance.toString(),
-    circulating: (new BN(pool.circulating.toString()).toNumber() / 1e9).toFixed(4) + " shortSOL",
+    circulating: (new BN(pool.circulating.toString()).toNumber() / 1e9).toFixed(4) + ` ${poolName}`,
     k: pool.k.toString(),
     feeBps: pool.feeBps,
     paused: pool.paused,
     authority: pool.authority.toBase58(),
-    solPriceUsd: `$${solUsd.toFixed(2)}`,
+    assetPriceUsd: `$${solUsd.toFixed(2)}`,
     shortsolPriceUsd: `$${shortsolUsd.toFixed(2)}`,
     lpTotalSupply: pool.lpTotalSupply.toString(),
     lpPrincipal: formatUsdc(new BN(pool.lpPrincipal.toString())),
@@ -92,19 +66,20 @@ export async function getPoolState(): Promise<string> {
   }, null, 2);
 }
 
-export async function getSolPrice(): Promise<string> {
-  const solPrice = await fetchSolPrice();
+export async function getSolPrice(poolId: string = DEFAULT_POOL_ID): Promise<string> {
+  const solPrice = await fetchSolPrice(poolId);
   const solUsd = pythPriceToUsd(solPrice);
 
   const program = getProgram();
-  const [poolPda] = derivePoolPda();
+  const [poolPda] = derivePoolPda(poolId);
   const pool: any = await (program.account as any).poolState.fetch(poolPda);
   const k = new BN(pool.k.toString());
   const solPriceBn = new BN(pythPriceToPrecision(solPrice).toString());
   const shortsolPrice = calcShortsolPrice(k, solPriceBn);
 
   return JSON.stringify({
-    solPriceUsd: solUsd,
+    poolId,
+    assetPriceUsd: solUsd,
     shortsolPriceUsd: shortsolPrice.toNumber() / 1e9,
     confidence: solPrice.conf * 10 ** solPrice.expo,
     publishTime: new Date(solPrice.publishTime * 1000).toISOString(),
@@ -112,15 +87,16 @@ export async function getSolPrice(): Promise<string> {
   }, null, 2);
 }
 
-export async function getPosition(walletAddress?: string): Promise<string> {
+export async function getPosition(walletAddress?: string, poolId: string = DEFAULT_POOL_ID): Promise<string> {
   const conn = getConnection();
   const wallet = getWallet();
   const owner = walletAddress ? new PublicKey(walletAddress) : wallet.publicKey;
   const usdcMint = getUsdcMint();
-  const [shortsolMint] = deriveShortsolMintPda();
-  const [lpMint] = deriveLpMintPda();
+  const [shortsolMint] = deriveShortsolMintPda(poolId);
+  const [lpMint] = deriveLpMintPda(poolId);
+  const poolName = POOLS[poolId]?.name ?? poolId;
 
-  const result: any = { wallet: owner.toBase58() };
+  const result: any = { wallet: owner.toBase58(), poolId };
 
   try {
     const usdcAta = await getAssociatedTokenAddress(usdcMint, owner);
@@ -132,13 +108,13 @@ export async function getPosition(walletAddress?: string): Promise<string> {
   try {
     const ssolAta = await getAssociatedTokenAddress(shortsolMint, owner);
     const ssolAcc = await getAccount(conn, ssolAta);
-    result.shortsolBalance = (Number(ssolAcc.amount) / 1e9).toFixed(4) + " shortSOL";
+    result.shortsolBalance = (Number(ssolAcc.amount) / 1e9).toFixed(4) + ` ${poolName}`;
     result.shortsolBalanceRaw = ssolAcc.amount.toString();
-  } catch { result.shortsolBalance = "0 shortSOL"; result.shortsolBalanceRaw = "0"; }
+  } catch { result.shortsolBalance = `0 ${poolName}`; result.shortsolBalanceRaw = "0"; }
 
   try {
     const program = getProgram();
-    const [lpPositionPda] = deriveLpPositionPda(owner);
+    const [lpPositionPda] = deriveLpPositionPda(owner, poolId);
     const pos: any = await (program.account as any).lpPosition.fetch(lpPositionPda);
     result.lpShares = pos.lpShares.toString();
     result.lpPendingFees = formatUsdc(new BN(pos.pendingFees.toString()));
@@ -160,40 +136,42 @@ export async function getPosition(walletAddress?: string): Promise<string> {
 // and MCP server uses the cached price for read operations.
 // For actual trading, agents should call updatePrice first via frontend.
 
-export async function mint(usdcAmount: number): Promise<string> {
+export async function mint(usdcAmount: number, poolId: string = DEFAULT_POOL_ID): Promise<string> {
   return JSON.stringify({
-    error: "Direct mint requires Pyth price posting (PythSolanaReceiver SDK has dependency conflict with jito-ts). Use the frontend at https://holging.netlify.app or run: npx ts-node scripts/test-mint.ts",
+    error: "Direct mint requires Pyth price posting (PythSolanaReceiver SDK has dependency conflict with jito-ts). Use the frontend at https://holging.com or run: npx ts-node scripts/test-mint.ts",
     workaround: "Call mint from the frontend with wallet connected, or use the CLI script.",
+    poolId,
     usdcAmount,
   }, null, 2);
 }
 
-export async function redeem(shortsolAmount: number): Promise<string> {
+export async function redeem(shortsolAmount: number, poolId: string = DEFAULT_POOL_ID): Promise<string> {
   return JSON.stringify({
-    error: "Direct redeem requires Pyth price posting (PythSolanaReceiver SDK has dependency conflict with jito-ts). Use the frontend at https://holging.netlify.app",
+    error: "Direct redeem requires Pyth price posting (PythSolanaReceiver SDK has dependency conflict with jito-ts). Use the frontend at https://holging.com",
     workaround: "Call redeem from the frontend with wallet connected.",
+    poolId,
     shortsolAmount,
   }, null, 2);
 }
 
 // ─── LP tools ────────────────────────────────────────────────────────────────
 
-export async function addLiquidity(usdcAmount: number): Promise<string> {
+export async function addLiquidity(usdcAmount: number, poolId: string = DEFAULT_POOL_ID): Promise<string> {
   const wallet = getWallet();
   const program = getProgram();
   const usdcMint = getUsdcMint();
 
-  const [poolPda] = derivePoolPda();
-  const [vaultUsdc] = deriveVaultPda(usdcMint);
-  const [lpMint] = deriveLpMintPda();
-  const [lpPosition] = deriveLpPositionPda(wallet.publicKey);
+  const [poolPda] = derivePoolPda(poolId);
+  const [vaultUsdc] = deriveVaultPda(usdcMint, poolId);
+  const [lpMint] = deriveLpMintPda(poolId);
+  const [lpPosition] = deriveLpPositionPda(wallet.publicKey, poolId);
   const lpProviderUsdc = await getAssociatedTokenAddress(usdcMint, wallet.publicKey);
   const lpProviderLpAta = await getAssociatedTokenAddress(lpMint, wallet.publicKey);
 
   const usdcLamports = new BN(Math.round(usdcAmount * 1e6));
 
   const sig = await (program.methods as any)
-    .addLiquidity(POOL_ID, usdcLamports)
+    .addLiquidity(poolId, usdcLamports)
     .accounts({
       poolState: poolPda, vaultUsdc, lpMint, lpPosition, lpProviderLpAta,
       usdcMint, lpProviderUsdc, lpProvider: wallet.publicKey,
@@ -208,32 +186,34 @@ export async function addLiquidity(usdcAmount: number): Promise<string> {
   return JSON.stringify({
     success: true,
     action: "add_liquidity",
+    poolId,
     usdcAmount: `$${usdcAmount}`,
     signature: sig,
     explorer: `https://explorer.solana.com/tx/${sig}?cluster=devnet`,
   }, null, 2);
 }
 
-export async function removeLiquidity(lpShares: number): Promise<string> {
+export async function removeLiquidity(lpShares: number, poolId: string = DEFAULT_POOL_ID): Promise<string> {
   return JSON.stringify({
-    error: "remove_liquidity requires Pyth price posting for vault health check. Use the frontend at https://holging.netlify.app",
+    error: "remove_liquidity requires Pyth price posting for vault health check. Use the frontend at https://holging.com",
     workaround: "Call removeLiquidity from the frontend with wallet connected.",
+    poolId,
     lpShares,
   }, null, 2);
 }
 
-export async function claimLpFees(): Promise<string> {
+export async function claimLpFees(poolId: string = DEFAULT_POOL_ID): Promise<string> {
   const wallet = getWallet();
   const program = getProgram();
   const usdcMint = getUsdcMint();
 
-  const [poolPda] = derivePoolPda();
-  const [vaultUsdc] = deriveVaultPda(usdcMint);
-  const [lpPosition] = deriveLpPositionPda(wallet.publicKey);
+  const [poolPda] = derivePoolPda(poolId);
+  const [vaultUsdc] = deriveVaultPda(usdcMint, poolId);
+  const [lpPosition] = deriveLpPositionPda(wallet.publicKey, poolId);
   const lpProviderUsdc = await getAssociatedTokenAddress(usdcMint, wallet.publicKey);
 
   const sig = await (program.methods as any)
-    .claimLpFees(POOL_ID)
+    .claimLpFees(poolId)
     .accounts({
       poolState: poolPda, vaultUsdc, lpPosition,
       usdcMint, lpProviderUsdc, lpProvider: wallet.publicKey,
@@ -246,6 +226,7 @@ export async function claimLpFees(): Promise<string> {
   return JSON.stringify({
     success: true,
     action: "claim_lp_fees",
+    poolId,
     signature: sig,
     explorer: `https://explorer.solana.com/tx/${sig}?cluster=devnet`,
   }, null, 2);

@@ -25,15 +25,20 @@ pub fn apply_funding_inline(
     let elapsed_to_apply = (elapsed as u64).min(MAX_FUNDING_ELAPSED_SECS);
     let denom: u128 = SECS_PER_DAY as u128 * BPS_DENOMINATOR as u128;
     let reduction: u128 = cfg.rate_bps as u128 * elapsed_to_apply as u128;
-    let factor_num = denom.saturating_sub(reduction);
+    let factor_num = denom
+        .checked_sub(reduction)
+        .ok_or(error!(SolshortError::MathOverflow))?;
     require!(factor_num > 0, SolshortError::MathOverflow);
 
-    pool.k = pool
+    let new_k = pool
         .k
         .checked_mul(factor_num)
         .ok_or(error!(SolshortError::MathOverflow))?
         .checked_div(denom)
         .ok_or(error!(SolshortError::MathOverflow))?;
+
+    // Apply MIN_K floor to prevent decay to zero (MEDIUM-03 fix)
+    pool.k = new_k.max(MIN_K);
 
     cfg.last_funding_at = cfg
         .last_funding_at

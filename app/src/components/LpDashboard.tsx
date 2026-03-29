@@ -10,12 +10,14 @@ import {
   deriveLpPositionPda,
   deriveLpMintPda,
 } from "../utils/program";
+import { DEFAULT_POOL_ID } from "../config/pools";
 import BN from "bn.js";
 
 interface LpDashboardProps {
   pool: any;
   solPriceUsd: number;
   usdcMint: PublicKey;
+  poolId?: string;
 }
 
 interface LpPosition {
@@ -26,12 +28,12 @@ interface LpPosition {
 
 const MIN_DEPOSIT_USDC = 100;
 
-export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint }: LpDashboardProps) {
+export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint, poolId = DEFAULT_POOL_ID }: LpDashboardProps) {
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
   const { addLiquidity, removeLiquidity, claimLpFees, loading, error, txSig } =
-    useSolshort();
-  const { refresh: refreshPool } = usePool();
+    useSolshort(poolId);
+  const { refresh: refreshPool } = usePool(poolId);
 
   // On-chain LP position state
   const [lpPosition, setLpPosition] = useState<LpPosition | null>(null);
@@ -57,7 +59,7 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint }: LpDas
     setLpPositionLoading(true);
     try {
       const program = getProgram(connection, wallet);
-      const [lpPositionPda] = deriveLpPositionPda(wallet.publicKey);
+      const [lpPositionPda] = deriveLpPositionPda(wallet.publicKey, poolId);
       const pos = await (program.account as any).lpPosition.fetch(lpPositionPda);
       setLpPosition({
         shares: new BN(pos.lpShares.toString()),
@@ -75,7 +77,7 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint }: LpDas
   const fetchLpBalance = useCallback(async () => {
     if (!wallet?.publicKey) return;
     try {
-      const [lpMint] = deriveLpMintPda();
+      const [lpMint] = deriveLpMintPda(poolId);
       const ata = await getAssociatedTokenAddress(lpMint, wallet.publicKey);
       const acc = await getAccount(connection, ata);
       setLpBalance(new BN(acc.amount.toString()));

@@ -87,10 +87,6 @@ pub mod holging {
         instructions::initialize_lp::handler(ctx, pool_id, min_lp_deposit)
     }
 
-    pub fn migrate_pool(ctx: Context<MigratePool>, pool_id: String) -> Result<()> {
-        instructions::migrate_pool::handler(ctx, pool_id)
-    }
-
     pub fn claim_lp_fees(ctx: Context<ClaimLpFees>, pool_id: String) -> Result<()> {
         instructions::claim_lp_fees::handler(ctx, pool_id)
     }

@@ -99,20 +99,29 @@ pub fn settle_lp_fees(pool: &PoolState, position: &mut LpPosition) -> Result<u64
 }
 
 /// Вычисляет количество LP shares при депозите.
-/// Первый депозит: shares = usdc_amount (bootstrap 1:1).
-/// Последующие: shares = usdc_amount * lp_total_supply / lp_principal.
+/// Использует dead shares (virtual offset) pattern для защиты от first-depositor
+/// share inflation attack (HIGH-02, ERC-4626 defense-in-depth).
+///
+/// shares = usdc_amount * (lp_total_supply + VIRTUAL_SHARES) / (lp_principal + VIRTUAL_ASSETS)
+///
+/// При первом депозите: shares = usdc_amount * 1000 / 1000 = usdc_amount (same 1:1).
+/// Virtual offset предотвращает манипуляцию share price через donation attack.
 pub fn calc_lp_shares(
     usdc_amount: u64,
     lp_total_supply: u64,
     lp_principal: u64,
 ) -> Result<u64> {
-    if lp_total_supply == 0 || lp_principal == 0 {
-        return Ok(usdc_amount);
-    }
+    let total_shares = (lp_total_supply as u128)
+        .checked_add(VIRTUAL_SHARES as u128)
+        .ok_or(error!(SolshortError::MathOverflow))?;
+    let total_assets = (lp_principal as u128)
+        .checked_add(VIRTUAL_ASSETS as u128)
+        .ok_or(error!(SolshortError::MathOverflow))?;
+
     (usdc_amount as u128)
-        .checked_mul(lp_total_supply as u128)
+        .checked_mul(total_shares)
         .ok_or(error!(SolshortError::MathOverflow))?
-        .checked_div(lp_principal as u128)
+        .checked_div(total_assets)
         .ok_or(error!(SolshortError::MathOverflow))?
         .try_into()
         .map_err(|_| error!(SolshortError::MathOverflow))

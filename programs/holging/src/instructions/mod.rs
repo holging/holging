@@ -5,7 +5,6 @@ pub mod claim_lp_fees;
 pub mod create_metadata;
 pub mod initialize;
 pub mod initialize_lp;
-pub mod migrate_pool;
 pub mod mint;
 pub mod pause;
 pub mod redeem;
@@ -32,8 +31,6 @@ pub use create_metadata::*;
 pub use initialize::*;
 #[allow(ambiguous_glob_reexports)]
 pub use initialize_lp::*;
-#[allow(ambiguous_glob_reexports)]
-pub use migrate_pool::*;
 #[allow(ambiguous_glob_reexports)]
 pub use mint::*;
 #[allow(ambiguous_glob_reexports)]

@@ -7,21 +7,23 @@ import { shortsolToLamports, calcDynamicFee } from "../utils/math";
 import { deriveShortsolMintPda } from "../utils/program";
 import { usePool } from "../hooks/usePool";
 import { usePythPrice } from "../hooks/usePythPrice";
+import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import BN from "bn.js";
 
 interface RedeemFormProps {
   usdcMint: string | null;
+  poolId?: string;
   onSuccess?: () => void;
 }
 
-export function RedeemForm({ usdcMint, onSuccess }: RedeemFormProps) {
+export function RedeemForm({ usdcMint, poolId = DEFAULT_POOL_ID, onSuccess }: RedeemFormProps) {
   const [amount, setAmount] = useState("");
   const [balance, setBalance] = useState<number>(0);
-  const { redeem, loading, error, txSig } = useSolshort();
+  const { redeem, loading, error, txSig } = useSolshort(poolId);
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
-  const { pool } = usePool();
-  const { solPriceUsd: solPrice } = usePythPrice();
+  const { pool } = usePool(poolId);
+  const { solPriceUsd: solPrice } = usePythPrice(POOLS[poolId]?.feedId);
 
   const dynamicFeeBps = pool && solPrice
     ? calcDynamicFee(
@@ -33,7 +35,7 @@ export function RedeemForm({ usdcMint, onSuccess }: RedeemFormProps) {
   const fetchBalance = useCallback(async () => {
     if (!wallet?.publicKey) return;
     try {
-      const [shortsolMint] = deriveShortsolMintPda();
+      const [shortsolMint] = deriveShortsolMintPda(poolId);
       const ata = await getAssociatedTokenAddress(
         shortsolMint,
         wallet.publicKey
@@ -65,20 +67,20 @@ export function RedeemForm({ usdcMint, onSuccess }: RedeemFormProps) {
 
   return (
     <div className="form-card">
-      <h3>Redeem shortSOL</h3>
+      <h3>Redeem {POOLS[poolId]?.name ?? "shortSOL"}</h3>
       <p className="form-desc">
-        Burn shortSOL tokens to receive USDC
+        Burn {POOLS[poolId]?.name ?? "shortSOL"} tokens to receive USDC
         {dynamicFeeBps !== null && ` | Fee: ${(dynamicFeeBps / 100).toFixed(2)}%`}
       </p>
       <div className="input-group">
         <input
           type="number"
-          placeholder="shortSOL amount"
+          placeholder={`${POOLS[poolId]?.name ?? "shortSOL"} amount`}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           min="0"
           step="0.0001"
-          aria-label="shortSOL amount to redeem"
+          aria-label={`${POOLS[poolId]?.name ?? "shortSOL"} amount to redeem`}
         />
         <button
           className="max-btn"
@@ -88,10 +90,10 @@ export function RedeemForm({ usdcMint, onSuccess }: RedeemFormProps) {
         >
           Max
         </button>
-        <span className="input-suffix">shortSOL</span>
+        <span className="input-suffix">{POOLS[poolId]?.name ?? "shortSOL"}</span>
       </div>
       {balance > 0 && (
-        <p className="balance-hint">Balance: {balance.toFixed(4)} shortSOL</p>
+        <p className="balance-hint">Balance: {balance.toFixed(4)} {POOLS[poolId]?.name ?? "shortSOL"}</p>
       )}
       {amount && !isValid && parsed > balance && (
         <p className="error">Exceeds balance</p>
@@ -100,7 +102,7 @@ export function RedeemForm({ usdcMint, onSuccess }: RedeemFormProps) {
         <p className="error">Amount must be positive</p>
       )}
       <button onClick={handleRedeem} disabled={loading || !isValid || !usdcMint}>
-        {loading ? "Redeeming..." : "Redeem USDC"}
+        {loading ? "Redeeming..." : `Redeem ${POOLS[poolId]?.name ?? "shortSOL"}`}
       </button>
       {error && <p className="error">{error}</p>}
       {txSig && (

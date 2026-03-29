@@ -4,6 +4,13 @@ use crate::constants::*;
 use crate::errors::SolshortError;
 use crate::state::PoolState;
 
+#[event]
+pub struct UpdateMinLpDepositEvent {
+    pub old_min_lp_deposit: u64,
+    pub new_min_lp_deposit: u64,
+    pub authority: Pubkey,
+}
+
 /// Admin-only: обновить минимальный порог LP депозита.
 #[derive(Accounts)]
 #[instruction(pool_id: String)]
@@ -25,6 +32,14 @@ pub fn handler(
     new_min_lp_deposit: u64,
 ) -> Result<()> {
     require!(new_min_lp_deposit > 0, SolshortError::AmountTooSmall);
+    let old = ctx.accounts.pool_state.min_lp_deposit;
     ctx.accounts.pool_state.min_lp_deposit = new_min_lp_deposit;
+
+    emit!(UpdateMinLpDepositEvent {
+        old_min_lp_deposit: old,
+        new_min_lp_deposit,
+        authority: ctx.accounts.authority.key(),
+    });
+
     Ok(())
 }

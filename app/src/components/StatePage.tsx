@@ -1,5 +1,6 @@
 import { usePool } from "../hooks/usePool";
 import { usePythPrice } from "../hooks/usePythPrice";
+import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import { calcShortsolPrice, calcDynamicFee } from "../utils/math";
 import BN from "bn.js";
 
@@ -13,9 +14,9 @@ function fmtNum(val: number, digits = 4): string {
   return val.toLocaleString(undefined, { maximumFractionDigits: digits });
 }
 
-export function StatePage() {
-  const { pool } = usePool();
-  const { solPriceUsd } = usePythPrice();
+export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
+  const { pool } = usePool(poolId);
+  const { solPriceUsd } = usePythPrice(POOLS[poolId]?.feedId);
 
   if (!pool) {
     return <div className="form-card"><p className="form-desc">Loading pool state...</p></div>;
@@ -114,9 +115,9 @@ export function StatePage() {
 
       <div className="risk-section">
         <h4>PROTOCOL METRICS</h4>
-        <div className="risk-row"><span>Total Minted</span><span>{fmtNum(totalMinted)} shortSOL</span></div>
-        <div className="risk-row"><span>Total Redeemed</span><span>{fmtNum(totalRedeemed)} shortSOL</span></div>
-        <div className="risk-row"><span>Circulating</span><span>{fmtNum(circulating)} shortSOL</span></div>
+        <div className="risk-row"><span>Total Minted</span><span>{fmtNum(totalMinted)} {POOLS[poolId]?.name ?? "shortSOL"}</span></div>
+        <div className="risk-row"><span>Total Redeemed</span><span>{fmtNum(totalRedeemed)} {POOLS[poolId]?.name ?? "shortSOL"}</span></div>
+        <div className="risk-row"><span>Circulating</span><span>{fmtNum(circulating)} {POOLS[poolId]?.name ?? "shortSOL"}</span></div>
         <div className="risk-row"><span>Fees Collected</span><span>{fmtUsdc(feesCollected)}</span></div>
         <div className="risk-row"><span>Current Fee</span><span>{(dynamicFeeBps / 100).toFixed(2)}% (dynamic)</span></div>
         <div className="risk-row"><span>Pool Status</span><span className={pool.paused ? "vault-red" : "vault-green"}>{pool.paused ? "PAUSED" : "ACTIVE"}</span></div>
@@ -125,7 +126,7 @@ export function StatePage() {
       <div className="risk-section">
         <h4>ORACLE</h4>
         <div className="risk-row"><span>SOL/USD</span><span>{solPriceUsd ? fmtUsdc(solPriceUsd) : "—"}</span></div>
-        <div className="risk-row"><span>shortSOL</span><span>{shortsolUsd ? fmtUsdc(shortsolUsd) : "—"}</span></div>
+        <div className="risk-row"><span>{POOLS[poolId]?.name ?? "shortSOL"}</span><span>{shortsolUsd ? fmtUsdc(shortsolUsd) : "—"}</span></div>
         <div className="risk-row"><span>Oracle Age</span><span className={oracleClass}>{oracleAge !== null ? `${oracleAge}s` : "—"}</span></div>
         <div className="risk-row"><span>Status</span><span className={oracleClass}>{oracleStatus}</span></div>
       </div>

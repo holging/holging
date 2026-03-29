@@ -9,13 +9,13 @@ export interface PythPrice {
   publishTime: number;
 }
 
-export async function fetchSolPrice(): Promise<PythPrice> {
-  const url = `${HERMES_URL}/v2/updates/price/latest?ids[]=${SOL_USD_FEED_ID}&parsed=true`;
+export async function fetchSolPrice(feedId: string = SOL_USD_FEED_ID): Promise<PythPrice> {
+  const url = `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&parsed=true`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Pyth API error: ${resp.status}`);
   const data = await resp.json();
   const parsed = data.parsed?.[0]?.price;
-  if (!parsed) throw new Error("No SOL/USD price data");
+  if (!parsed) throw new Error("No price data for feed");
   return {
     price: Number(parsed.price),
     conf: Number(parsed.conf),

@@ -128,7 +128,7 @@ SOL должен сдвинуться на ±4% для прибыли после
 - **Risk Dashboard** (admin-only) — стресс-тест, liquidity calculator, vault metrics
 - **Real-time** цены SOL через Pyth oracle
 - **Multi-wallet** поддержка (Phantom, Solflare)
-- **Задеплоен на Netlify**: работающее приложение
+- **Работающее приложение**: holging.com
 
 ### Безопасность оракула (Pyth Network)
 4 уровня валидации:
@@ -170,7 +170,7 @@ Frontend:      React 19 + TypeScript 5.9 + Vite 7
 Wallet:        Solana Wallet Adapter
 Token:         SPL Token + Metaplex metadata
 Верификация:   Lean 4 + Mathlib (8 теорем)
-Hosting:       Netlify (frontend)
+Hosting:       holging.com
 Keeper:        Node.js скрипт (scripts/keeper.ts), permissionless
 Mobile:        Solafon Mini App (в разработке)
 ```
@@ -240,7 +240,7 @@ L_required = TVL / (1 − d)
 - ✅ Withdraw floor 110% (буфер до circuit breaker)
 - ✅ Frontend: Mint, Redeem, Holging, Holders, State, Risk Dashboard
 - ✅ Lean 4 формальная верификация (8 теорем)
-- ✅ Деплой на Netlify
+- ✅ Деплой на holging.com
 
 ### Phase 2: Testnet + Audit
 - [ ] Security audit (OtterSec / Neodyme)

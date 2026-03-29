@@ -1,11 +1,12 @@
 import { usePythPrice } from "../hooks/usePythPrice";
 import { usePool } from "../hooks/usePool";
+import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import BN from "bn.js";
 import { calcShortsolPrice, formatPrice } from "../utils/math";
 
-export function PriceDisplay() {
-  const { solPriceUsd, loading: priceLoading, error: priceError } = usePythPrice();
-  const { pool, loading: poolLoading } = usePool();
+export function PriceDisplay({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
+  const { solPriceUsd, loading: priceLoading, error: priceError } = usePythPrice(POOLS[poolId]?.feedId);
+  const { pool, loading: poolLoading } = usePool(poolId);
 
   const shortsolPriceUsd =
     pool && solPriceUsd
@@ -19,7 +20,7 @@ export function PriceDisplay() {
   return (
     <div className="price-display">
       <div className="price-card">
-        <span className="price-label">SOL/USD</span>
+        <span className="price-label">{POOLS[poolId]?.asset ?? "SOL"}/USD</span>
         <span className="price-value">
           {priceLoading
             ? "Loading..."
@@ -29,7 +30,7 @@ export function PriceDisplay() {
         </span>
       </div>
       <div className="price-card">
-        <span className="price-label">shortSOL</span>
+        <span className="price-label">{POOLS[poolId]?.name ?? "shortSOL"}</span>
         <span className="price-value">
           {poolLoading ? "Loading..." : shortsolPriceUsd ?? "—"}
         </span>

@@ -34,7 +34,7 @@ function App() {
   const { connected, publicKey } = useWallet();
   const [selectedPoolId, setSelectedPoolId] = useState(DEFAULT_POOL_ID);
   const { pool, error: poolError } = usePool(selectedPoolId);
-  const { solPriceUsd } = usePythPrice();
+  const { solPriceUsd } = usePythPrice(POOLS[selectedPoolId]?.feedId);
   const [tab, setTab] = useState<Tab>("mint");
 
   const selectedPool = POOLS[selectedPoolId];
@@ -70,11 +70,11 @@ function App() {
           ))}
         </div>
 
-        <PriceDisplay />
+        <PriceDisplay poolId={selectedPoolId} />
 
-        {connected && <PositionCard />}
+        {connected && <PositionCard poolId={selectedPoolId} />}
 
-        {connected && <PortfolioView usdcMint={USDC_MINT} />}
+        {connected && <PortfolioView usdcMint={USDC_MINT} poolId={selectedPoolId} />}
 
         <div className="tabs">
           <button
@@ -128,21 +128,22 @@ function App() {
         {tab === "mint" && (
           <>
             <FaucetButton />
-            <MintForm usdcMint={USDC_MINT} />
+            <MintForm usdcMint={USDC_MINT} poolId={selectedPoolId} />
           </>
         )}
-        {tab === "redeem" && <RedeemForm usdcMint={USDC_MINT} />}
+        {tab === "redeem" && <RedeemForm usdcMint={USDC_MINT} poolId={selectedPoolId} />}
         {tab === "lp" && lpInitialized && (
           <LpDashboard
             pool={pool}
             solPriceUsd={solPriceUsd ?? 0}
             usdcMint={USDC_MINT_PK}
+            poolId={selectedPoolId}
           />
         )}
-        {tab === "holging" && <StrategyTerminal />}
-        {tab === "holders" && <TokenHolders />}
-        {tab === "state" && <StatePage />}
-        {tab === "risk" && isAdmin && <RiskDashboard />}
+        {tab === "holging" && <StrategyTerminal poolId={selectedPoolId} />}
+        {tab === "holders" && <TokenHolders poolId={selectedPoolId} />}
+        {tab === "state" && <StatePage poolId={selectedPoolId} />}
+        {tab === "risk" && isAdmin && <RiskDashboard poolId={selectedPoolId} />}
 
         {poolError && selectedPoolId === DEFAULT_POOL_ID && (
           <div className="info-banner">

@@ -24,8 +24,8 @@ import {
   deriveFundingConfigPda,
   deriveLpMintPda,
   deriveLpPositionPda,
-  POOL_ID,
 } from "../utils/program";
+import { DEFAULT_POOL_ID, POOLS } from "../config/pools";
 import { HERMES_URL, SOL_USD_FEED_ID, fetchSolPrice, pythPriceToPrecision } from "../utils/pyth";
 import { calcShortsolPrice, calcMintTokens, calcRedeemUsdc, calcDynamicFee } from "../utils/math";
 
@@ -33,16 +33,18 @@ const SLIPPAGE_BPS = 100; // 1% default slippage tolerance
 const BPS_DENOM = new BN(10_000);
 
 /** Fetch fresh price update VAA from Hermes */
-async function fetchPriceUpdateData(): Promise<string[]> {
+async function fetchPriceUpdateData(feedId: string = SOL_USD_FEED_ID): Promise<string[]> {
   const resp = await fetch(
-    `${HERMES_URL}/v2/updates/price/latest?ids[]=${SOL_USD_FEED_ID}&encoding=base64`
+    `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&encoding=base64`
   );
   if (!resp.ok) throw new Error(`Hermes API error: ${resp.status}`);
   const data = await resp.json();
   return data.binary.data;
 }
 
-export function useSolshort() {
+export function useSolshort(poolId: string = DEFAULT_POOL_ID) {
+  const POOL_ID = poolId;
+  const feedId = POOLS[poolId]?.feedId ?? SOL_USD_FEED_ID;
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
   const [txSig, setTxSig] = useState<string | null>(null);
@@ -56,10 +58,10 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
-        const [shortsolMint] = deriveShortsolMintPda();
-        const [mintAuth] = deriveMintAuthPda();
-        const [vaultUsdc] = deriveVaultPda(usdcMint);
+        const [poolPda] = derivePoolPda(POOL_ID);
+        const [shortsolMint] = deriveShortsolMintPda(POOL_ID);
+        const [mintAuth] = deriveMintAuthPda(POOL_ID);
+        const [vaultUsdc] = deriveVaultPda(usdcMint, POOL_ID);
 
         const userUsdc = await getAssociatedTokenAddress(
           usdcMint,
@@ -84,10 +86,10 @@ export function useSolshort() {
           );
         }
 
-        const [fundingConfigPda] = deriveFundingConfigPda();
+        const [fundingConfigPda] = deriveFundingConfigPda(POOL_ID);
 
         // Step 1: Post Pyth price update (separate versioned tx)
-        const priceFeedUpdateData = await fetchPriceUpdateData();
+        const priceFeedUpdateData = await fetchPriceUpdateData(feedId);
         const pythReceiver = new PythSolanaReceiver({
           connection,
           wallet: wallet as any,
@@ -101,9 +103,9 @@ export function useSolshort() {
         await txBuilder.addPriceConsumerInstructions(
           async (getPriceUpdateAccount) => {
             try {
-              priceUpdateAccount = getPriceUpdateAccount("0x" + SOL_USD_FEED_ID);
+              priceUpdateAccount = getPriceUpdateAccount("0x" + feedId);
             } catch {
-              priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
+              priceUpdateAccount = getPriceUpdateAccount(feedId);
             }
             return []; // no consumer instructions — just resolve the account
           }
@@ -124,7 +126,7 @@ export function useSolshort() {
           .instruction();
 
         const poolAcc = await (program.account as any).poolState.fetch(poolPda);
-        const solPricePyth = await fetchSolPrice();
+        const solPricePyth = await fetchSolPrice(feedId);
         const solPriceBn = new BN(pythPriceToPrecision(solPricePyth).toString());
         const shortsolPrice = calcShortsolPrice(new BN(poolAcc.k.toString()), solPriceBn);
         const dynamicFee = calcDynamicFee(
@@ -176,7 +178,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   const redeem = useCallback(
@@ -186,9 +188,9 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
-        const [shortsolMint] = deriveShortsolMintPda();
-        const [vaultUsdc] = deriveVaultPda(usdcMint);
+        const [poolPda] = derivePoolPda(POOL_ID);
+        const [shortsolMint] = deriveShortsolMintPda(POOL_ID);
+        const [vaultUsdc] = deriveVaultPda(usdcMint, POOL_ID);
 
         const userUsdc = await getAssociatedTokenAddress(
           usdcMint,
@@ -200,10 +202,10 @@ export function useSolshort() {
         );
 
         // Resolve funding config PDA
-        const [fundingConfigPda] = deriveFundingConfigPda();
+        const [fundingConfigPda] = deriveFundingConfigPda(POOL_ID);
 
         // Fetch fresh price update from Hermes
-        const priceFeedUpdateData = await fetchPriceUpdateData();
+        const priceFeedUpdateData = await fetchPriceUpdateData(feedId);
 
         const pythReceiver = new PythSolanaReceiver({
           connection,
@@ -220,10 +222,10 @@ export function useSolshort() {
           async (getPriceUpdateAccount) => {
             try {
               priceUpdateAccount = getPriceUpdateAccount(
-                "0x" + SOL_USD_FEED_ID
+                "0x" + feedId
               );
             } catch {
-              priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
+              priceUpdateAccount = getPriceUpdateAccount(feedId);
             }
 
             // Update cached price first (no deviation check)
@@ -238,7 +240,7 @@ export function useSolshort() {
 
             // Calculate slippage-protected minimum output
             const poolAcc = await (program.account as any).poolState.fetch(poolPda);
-            const solPricePyth = await fetchSolPrice();
+            const solPricePyth = await fetchSolPrice(feedId);
             const solPriceBn = new BN(pythPriceToPrecision(solPricePyth).toString());
             const shortsolPrice = calcShortsolPrice(new BN(poolAcc.k.toString()), solPriceBn);
             const dynamicFee = calcDynamicFee(
@@ -291,7 +293,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   const addLiquidity = useCallback(
@@ -301,10 +303,10 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
-        const [vaultUsdc] = deriveVaultPda(usdcMint);
-        const [lpMint] = deriveLpMintPda();
-        const [lpPosition] = deriveLpPositionPda(wallet.publicKey);
+        const [poolPda] = derivePoolPda(POOL_ID);
+        const [vaultUsdc] = deriveVaultPda(usdcMint, POOL_ID);
+        const [lpMint] = deriveLpMintPda(POOL_ID);
+        const [lpPosition] = deriveLpPositionPda(wallet.publicKey, POOL_ID);
 
         const lpProviderUsdc = await getAssociatedTokenAddress(
           usdcMint,
@@ -342,7 +344,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   const setPause = useCallback(
@@ -352,7 +354,7 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
+        const [poolPda] = derivePoolPda(POOL_ID);
 
         const sig = await (program.methods as any)
           .setPause(POOL_ID, paused)
@@ -372,7 +374,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   const updateK = useCallback(
@@ -382,7 +384,7 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
+        const [poolPda] = derivePoolPda(POOL_ID);
 
         const sig = await (program.methods as any)
           .updateK(POOL_ID, newK)
@@ -402,7 +404,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   const updatePrice = useCallback(
@@ -412,9 +414,9 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
+        const [poolPda] = derivePoolPda(POOL_ID);
 
-        const priceFeedUpdateData = await fetchPriceUpdateData();
+        const priceFeedUpdateData = await fetchPriceUpdateData(feedId);
 
         const pythReceiver = new PythSolanaReceiver({
           connection,
@@ -431,10 +433,10 @@ export function useSolshort() {
           async (getPriceUpdateAccount) => {
             try {
               priceUpdateAccount = getPriceUpdateAccount(
-                "0x" + SOL_USD_FEED_ID
+                "0x" + feedId
               );
             } catch {
-              priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
+              priceUpdateAccount = getPriceUpdateAccount(feedId);
             }
 
             const updatePriceIx = await (program.methods as any)
@@ -469,7 +471,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   const removeLiquidity = useCallback(
@@ -479,15 +481,15 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
-        const [vaultUsdc] = deriveVaultPda(usdcMint);
-        const [lpMint] = deriveLpMintPda();
-        const [lpPosition] = deriveLpPositionPda(wallet.publicKey);
+        const [poolPda] = derivePoolPda(POOL_ID);
+        const [vaultUsdc] = deriveVaultPda(usdcMint, POOL_ID);
+        const [lpMint] = deriveLpMintPda(POOL_ID);
+        const [lpPosition] = deriveLpPositionPda(wallet.publicKey, POOL_ID);
 
         const lpProviderUsdc = await getAssociatedTokenAddress(usdcMint, wallet.publicKey);
         const lpProviderLpAta = await getAssociatedTokenAddress(lpMint, wallet.publicKey);
 
-        const priceFeedUpdateData = await fetchPriceUpdateData();
+        const priceFeedUpdateData = await fetchPriceUpdateData(feedId);
         const pythReceiver = new PythSolanaReceiver({ connection, wallet: wallet as any });
         const txBuilder = pythReceiver.newTransactionBuilder({ closeUpdateAccounts: false });
         await txBuilder.addPostPriceUpdates(priceFeedUpdateData);
@@ -495,9 +497,9 @@ export function useSolshort() {
         let priceUpdateAccount: PublicKey;
         await txBuilder.addPriceConsumerInstructions(async (getPriceUpdateAccount) => {
           try {
-            priceUpdateAccount = getPriceUpdateAccount("0x" + SOL_USD_FEED_ID);
+            priceUpdateAccount = getPriceUpdateAccount("0x" + feedId);
           } catch {
-            priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
+            priceUpdateAccount = getPriceUpdateAccount(feedId);
           }
           const ix = await (program.methods as any)
             .removeLiquidity(POOL_ID, lpSharesAmount)
@@ -529,7 +531,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   const claimLpFees = useCallback(
@@ -539,9 +541,9 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
-        const [vaultUsdc] = deriveVaultPda(usdcMint);
-        const [lpPosition] = deriveLpPositionPda(wallet.publicKey);
+        const [poolPda] = derivePoolPda(POOL_ID);
+        const [vaultUsdc] = deriveVaultPda(usdcMint, POOL_ID);
+        const [lpPosition] = deriveLpPositionPda(wallet.publicKey, POOL_ID);
         const lpProviderUsdc = await getAssociatedTokenAddress(usdcMint, wallet.publicKey);
 
         const sig = await (program.methods as any)
@@ -567,7 +569,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   const transferAuthority = useCallback(
@@ -577,7 +579,7 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
+        const [poolPda] = derivePoolPda(POOL_ID);
 
         const sig = await (program.methods as any)
           .transferAuthority(POOL_ID)
@@ -598,7 +600,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   const acceptAuthority = useCallback(
@@ -608,7 +610,7 @@ export function useSolshort() {
       setError(null);
       try {
         const program = getProgram(connection, wallet);
-        const [poolPda] = derivePoolPda();
+        const [poolPda] = derivePoolPda(POOL_ID);
 
         const sig = await (program.methods as any)
           .acceptAuthority(POOL_ID)
@@ -628,7 +630,7 @@ export function useSolshort() {
         setLoading(false);
       }
     },
-    [connection, wallet]
+    [connection, wallet, POOL_ID, feedId]
   );
 
   return {

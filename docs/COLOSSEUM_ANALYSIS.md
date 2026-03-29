@@ -103,7 +103,7 @@ Holging — единственный проект среди 5,400+ в Colosseum
 
 | Критерий | Holging | Статус |
 |----------|---------|--------|
-| Работающее демо | holging.netlify.app | ✅ |
+| Работающее демо | holging.com | ✅ |
 | Новый механизм | 1/x inverse token | ✅ |
 | Безопасность | Audit + 4-layer oracle | ✅ |
 | Экономическая модель | Business Analysis с числами | ✅ |
@@ -130,7 +130,7 @@ Holging — единственный проект среди 5,400+ в Colosseum
 ### Обязательно
 - [ ] Записать видео-демо (Loom, 3-5 мин): mint → redeem → LP deposit → claim fees
 - [ ] Подготовить presentation (слайды или видео-питч)
-- [ ] Убедиться что holging.netlify.app работает стабильно
+- [ ] Убедиться что holging.com работает стабильно
 
 ### Желательно
 - [ ] Создать Twitter/X аккаунт для Holging

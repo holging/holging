@@ -15,8 +15,10 @@ import {
 } from "@solana/spl-token";
 import { assert } from "chai";
 import BN from "bn.js";
+import { createRequire } from "module";
 
-const IDL = require("../target/idl/solshort.json");
+const require = createRequire(import.meta.url);
+const IDL = require("../target/idl/holging.json");
 
 const POOL_ID = "sol";
 const POOL_SEED = Buffer.from("pool");
@@ -235,8 +237,8 @@ describe("solshort", () => {
   // IDL validation
   // ═══════════════════════════════════════════════════
   describe("IDL validation", () => {
-    it("has 20 instructions", () => {
-      assert.equal(IDL.instructions.length, 20);
+    it("has 19 instructions", () => {
+      assert.equal(IDL.instructions.length, 19);
       const names = IDL.instructions.map((i: any) => i.name);
       assert.include(names, "initialize");
       assert.include(names, "mint");
@@ -255,13 +257,12 @@ describe("solshort", () => {
       assert.include(names, "accrue_funding");
       assert.include(names, "update_funding_rate");
       assert.include(names, "initialize_lp");
-      assert.include(names, "migrate_pool");
       assert.include(names, "claim_lp_fees");
       assert.include(names, "update_min_lp_deposit");
     });
 
-    it("has 20 error codes", () => {
-      assert.equal(IDL.errors.length, 20);
+    it("has 21 error codes", () => {
+      assert.equal(IDL.errors.length, 21);
       const names = IDL.errors.map((e: any) => e.name);
       assert.include(names, "Paused");
       assert.include(names, "StaleOracle");
@@ -271,6 +272,7 @@ describe("solshort", () => {
       assert.include(names, "InvalidPoolId");
       assert.include(names, "SlippageExceeded");
       assert.include(names, "NoPendingAuthority");
+      assert.include(names, "FundingConfigRequired");
     });
 
     it("has PoolState type with all fields", () => {
@@ -289,8 +291,8 @@ describe("solshort", () => {
       assert.include(fieldNames, "mint_auth_bump");
     });
 
-    it("has 16 events", () => {
-      assert.equal(IDL.events.length, 16);
+    it("has 17 events", () => {
+      assert.equal(IDL.events.length, 17);
       const names = IDL.events.map((e: any) => e.name);
       assert.include(names, "MintEvent");
       assert.include(names, "RedeemEvent");
@@ -308,6 +310,7 @@ describe("solshort", () => {
       assert.include(names, "LpWithdrawEvent");
       assert.include(names, "LpFeeClaimedEvent");
       assert.include(names, "FundingDistributedEvent");
+      assert.include(names, "UpdateMinLpDepositEvent");
     });
 
     it("mint instruction has min_tokens_out parameter (slippage protection)", () => {
@@ -401,7 +404,7 @@ describe("solshort", () => {
 
     it("admin instructions require authority signer", () => {
       const adminInstructions = [
-        "add_liquidity", "remove_liquidity", "withdraw_fees",
+        "withdraw_fees",
         "update_k", "set_pause", "create_metadata", "transfer_authority"
       ];
       for (const name of adminInstructions) {
@@ -597,10 +600,14 @@ describe("Integration tests", () => {
     console.log("  LP Provider:       ", lpProvider.publicKey.toBase58());
   });
 
+  // SOL/USD Pyth feed ID as byte array (64 ASCII hex chars → 64 u8 values)
+  const SOL_USD_FEED_ID_HEX = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+  const PYTH_FEED_ID_BYTES = Array.from(Buffer.from(SOL_USD_FEED_ID_HEX, "ascii"));
+
   // ── Test 1: initialize pool ────────────────────────────────────────────────
   it("initializes pool with fee_bps=4", async () => {
     await (program.methods as any)
-      .initialize(INT_POOL_ID, 4)
+      .initialize(INT_POOL_ID, 4, PYTH_FEED_ID_BYTES)
       .accounts({
         poolState: poolStatePda,
         shortsolMint: shortsolMintPda,

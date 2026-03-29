@@ -1,25 +1,26 @@
 import { useTokenHolders } from "../hooks/useTokenHolders";
 import { SHORTSOL_DECIMALS } from "../utils/math";
 import { deriveShortsolMintPda } from "../utils/program";
+import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 
 function shortenAddress(addr: string): string {
   return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
 }
 
-export function TokenHolders() {
-  const { holders, totalSupply, loading, error } = useTokenHolders();
-  const [shortsolMint] = deriveShortsolMintPda();
+export function TokenHolders({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
+  const { holders, totalSupply, loading, error } = useTokenHolders(poolId);
+  const [shortsolMint] = deriveShortsolMintPda(poolId);
   const mintAddr = shortsolMint.toBase58();
 
   return (
     <div className="form-card holders-card">
-      <h3>shortSOL Holders</h3>
+      <h3>{POOLS[poolId]?.name ?? "shortSOL"} Holders</h3>
 
       <div className="holders-summary">
         <div className="holders-stat">
           <span className="holders-stat-label">Total Supply</span>
           <span className="holders-stat-value">
-            {totalSupply.toFixed(SHORTSOL_DECIMALS > 4 ? 4 : SHORTSOL_DECIMALS)} sSol
+            {totalSupply.toFixed(SHORTSOL_DECIMALS > 4 ? 4 : SHORTSOL_DECIMALS)} {POOLS[poolId]?.name ?? "sSol"}
           </span>
         </div>
         <div className="holders-stat">
@@ -70,7 +71,7 @@ export function TokenHolders() {
                 </a>
               </span>
               <span className="holder-balance">
-                {h.balance.toFixed(4)} sSol
+                {h.balance.toFixed(4)} {POOLS[poolId]?.name ?? "sSol"}
               </span>
               <span className="holder-pct">{h.percentage.toFixed(1)}%</span>
             </div>

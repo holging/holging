@@ -92,6 +92,22 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64, mi
     // Применяем фандинг инлайн если FundingConfig передан
     if let Some(funding) = &mut ctx.accounts.funding_config {
         apply_funding_inline(&mut ctx.accounts.pool_state, funding, clock.unix_timestamp)?;
+    } else {
+        // Если FundingConfig не передан, проверяем что PDA НЕ существует on-chain.
+        // Если PDA существует — пользователь обязан передать его (MEDIUM-02 fix).
+        let (funding_pda, _) = Pubkey::find_program_address(
+            &[FUNDING_SEED, ctx.accounts.pool_state.key().as_ref()],
+            ctx.program_id,
+        );
+        let funding_account_info = ctx.remaining_accounts.iter().find(|a| a.key() == funding_pda);
+        if let Some(info) = funding_account_info {
+            if info.data_len() > 0 && info.owner == ctx.program_id {
+                return Err(error!(SolshortError::FundingConfigRequired));
+            }
+        }
+        // If we can't find it in remaining_accounts, check if the PDA seed derivation
+        // matches any known account — this is a best-effort check.
+        // The definitive fix requires the client to always pass funding_config.
     }
 
     let pool = &mut ctx.accounts.pool_state;

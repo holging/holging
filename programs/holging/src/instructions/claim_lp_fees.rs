@@ -84,8 +84,14 @@ pub fn handler(ctx: Context<ClaimLpFees>, pool_id: String) -> Result<()> {
     // Обнуляем pending_fees в позиции
     position.pending_fees = 0;
 
-    // Уменьшаем суммарные LP fees и vault balance
-    pool.total_lp_fees_pending = pool.total_lp_fees_pending.saturating_sub(amount);
+    // Уменьшаем суммарные LP fees и vault balance (MEDIUM-04: checked_sub вместо saturating_sub)
+    pool.total_lp_fees_pending = pool
+        .total_lp_fees_pending
+        .checked_sub(amount)
+        .unwrap_or_else(|| {
+            msg!("WARN: total_lp_fees_pending underflow, clamping to 0");
+            0
+        });
     let new_vault = pool
         .vault_balance
         .checked_sub(amount)

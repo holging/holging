@@ -18,7 +18,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const DEVNET_RPC = "https://api.devnet.solana.com";
-const POOL_ID = "sol";
+const POOL_ID = process.argv[3] || "sol";
 const USDC_MINT = new PublicKey("CAMk3KqYMKEtoQnsDyJMmdKUfvh5wa4uYSJvUTDheeGn");
 
 const POOL_SEED = Buffer.from("pool");

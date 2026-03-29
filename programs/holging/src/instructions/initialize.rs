@@ -64,6 +64,14 @@ pub fn handler(ctx: Context<Initialize>, pool_id: String, fee_bps: u16, pyth_fee
         SolshortError::InvalidFee // reuse error — wrong token decimals
     );
 
+    // Validate USDC mint address on mainnet (MEDIUM-05 fix).
+    // On devnet, any 6-decimal mint is accepted for testing.
+    #[cfg(not(feature = "devnet"))]
+    require!(
+        ctx.accounts.usdc_mint.key() == USDC_MINT_PUBKEY,
+        SolshortError::InvalidFee
+    );
+
     let pool_bump = ctx.bumps.pool_state;
     let mint_bump = ctx.bumps.shortsol_mint;
     let mint_auth_bump = ctx.bumps.mint_authority;

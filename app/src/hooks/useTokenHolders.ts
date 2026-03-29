@@ -4,6 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 import { AccountLayout } from "@solana/spl-token";
 import { deriveShortsolMintPda } from "../utils/program";
 import { SHORTSOL_DECIMALS } from "../utils/math";
+import { DEFAULT_POOL_ID } from "../config/pools";
 
 export interface TokenHolder {
   address: string;
@@ -11,7 +12,7 @@ export interface TokenHolder {
   percentage: number;
 }
 
-export function useTokenHolders(intervalMs = 30_000) {
+export function useTokenHolders(poolId: string = DEFAULT_POOL_ID, intervalMs = 30_000) {
   const { connection } = useConnection();
   const [holders, setHolders] = useState<TokenHolder[]>([]);
   const [totalSupply, setTotalSupply] = useState<number>(0);
@@ -20,7 +21,7 @@ export function useTokenHolders(intervalMs = 30_000) {
 
   const refresh = useCallback(async () => {
     try {
-      const [shortsolMint] = deriveShortsolMintPda();
+      const [shortsolMint] = deriveShortsolMintPda(poolId);
 
       // Fetch supply and largest accounts in parallel
       const [supplyRes, largestRes] = await Promise.all([
@@ -63,7 +64,7 @@ export function useTokenHolders(intervalMs = 30_000) {
     } finally {
       setLoading(false);
     }
-  }, [connection]);
+  }, [connection, poolId]);
 
   useEffect(() => {
     refresh();

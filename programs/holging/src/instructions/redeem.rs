@@ -88,6 +88,19 @@ pub fn handler(
     // Применяем фандинг инлайн если FundingConfig передан
     if let Some(funding) = &mut ctx.accounts.funding_config {
         apply_funding_inline(&mut ctx.accounts.pool_state, funding, clock.unix_timestamp)?;
+    } else {
+        // Если FundingConfig не передан, проверяем что PDA НЕ существует on-chain.
+        // Если PDA существует — пользователь обязан передать его (MEDIUM-02 fix).
+        let (funding_pda, _) = Pubkey::find_program_address(
+            &[FUNDING_SEED, ctx.accounts.pool_state.key().as_ref()],
+            ctx.program_id,
+        );
+        let funding_account_info = ctx.remaining_accounts.iter().find(|a| a.key() == funding_pda);
+        if let Some(info) = funding_account_info {
+            if info.data_len() > 0 && info.owner == ctx.program_id {
+                return Err(error!(SolshortError::FundingConfigRequired));
+            }
+        }
     }
 
     let pool = &mut ctx.accounts.pool_state;

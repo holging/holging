@@ -5,18 +5,20 @@ import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
 import { deriveShortsolMintPda } from "../utils/program";
 import { usePool } from "../hooks/usePool";
 import { usePythPrice } from "../hooks/usePythPrice";
+import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import { calcShortsolPrice, SHORTSOL_DECIMALS, USDC_DECIMALS } from "../utils/math";
 import BN from "bn.js";
 
 interface PortfolioViewProps {
   usdcMint: string | null;
+  poolId?: string;
 }
 
-export function PortfolioView({ usdcMint }: PortfolioViewProps) {
+export function PortfolioView({ usdcMint, poolId = DEFAULT_POOL_ID }: PortfolioViewProps) {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
-  const { pool } = usePool();
-  const { solPriceUsd } = usePythPrice();
+  const { pool } = usePool(poolId);
+  const { solPriceUsd } = usePythPrice(POOLS[poolId]?.feedId);
   const [usdcBalance, setUsdcBalance] = useState<BN | null>(null);
   const [shortsolBalance, setShortsolBalance] = useState<BN | null>(null);
   const [solBalance, setSolBalance] = useState<number | null>(null);
@@ -45,7 +47,7 @@ export function PortfolioView({ usdcMint }: PortfolioViewProps) {
 
       // shortSOL balance
       try {
-        const [shortsolMint] = deriveShortsolMintPda();
+        const [shortsolMint] = deriveShortsolMintPda(poolId);
         const shortsolAta = await getAssociatedTokenAddress(
           shortsolMint,
           publicKey
@@ -108,7 +110,7 @@ export function PortfolioView({ usdcMint }: PortfolioViewProps) {
         <span className="balance-usd">{usdcBalance ? formatUsd(usdcValueUsd) : "—"}</span>
       </div>
       <div className="balance-row">
-        <span className="balance-asset">shortSOL</span>
+        <span className="balance-asset">{POOLS[poolId]?.name ?? "shortSOL"}</span>
         <span className="balance-amount">
           {shortsolBalance ? shortsolNum.toFixed(4) : "—"}
         </span>

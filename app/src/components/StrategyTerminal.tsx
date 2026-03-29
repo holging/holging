@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { usePythPrice } from "../hooks/usePythPrice";
 import { usePool } from "../hooks/usePool";
+import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import BN from "bn.js";
 import {
   calcShortsolPrice,
@@ -11,12 +12,12 @@ import {
   generateChartPoints,
 } from "../utils/math";
 
-export function StrategyTerminal() {
+export function StrategyTerminal({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
   const [investmentStr, setInvestmentStr] = useState("1000");
   const investment = Number(investmentStr) || 0;
   const [priceChange, setPriceChange] = useState(0);
-  const { solPriceUsd } = usePythPrice();
-  const { pool } = usePool();
+  const { solPriceUsd } = usePythPrice(POOLS[poolId]?.feedId);
+  const { pool } = usePool(poolId);
 
   const feeBps = pool?.feeBps ?? 4;
   const multiplier = 1 + priceChange / 100;

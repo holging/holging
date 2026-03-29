@@ -4,6 +4,7 @@ import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
 import { deriveShortsolMintPda } from "../utils/program";
 import { usePool } from "../hooks/usePool";
 import { usePythPrice } from "../hooks/usePythPrice";
+import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import {
   calcShortsolPrice,
   SHORTSOL_DECIMALS,
@@ -11,11 +12,11 @@ import {
 } from "../utils/math";
 import BN from "bn.js";
 
-export function PositionCard() {
+export function PositionCard({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
-  const { pool } = usePool();
-  const { solPriceUsd } = usePythPrice();
+  const { pool } = usePool(poolId);
+  const { solPriceUsd } = usePythPrice(POOLS[poolId]?.feedId);
   const [shortsolBalance, setShortsolBalance] = useState<BN | null>(null);
 
   useEffect(() => {
@@ -23,7 +24,7 @@ export function PositionCard() {
 
     const fetchBalance = async () => {
       try {
-        const [shortsolMint] = deriveShortsolMintPda();
+        const [shortsolMint] = deriveShortsolMintPda(poolId);
         const ata = await getAssociatedTokenAddress(shortsolMint, publicKey);
         const acc = await getAccount(connection, ata);
         setShortsolBalance(new BN(acc.amount.toString()));
@@ -46,7 +47,7 @@ export function PositionCard() {
   if (balanceNum === 0) {
     return (
       <div className="position-card">
-        <h3>shortSOL Position</h3>
+        <h3>{POOLS[poolId]?.name ?? "shortSOL"} Position</h3>
         <p className="position-empty">No position</p>
       </div>
     );
@@ -95,23 +96,23 @@ export function PositionCard() {
 
   return (
     <div className="position-card">
-      <h3>shortSOL Position</h3>
+      <h3>{POOLS[poolId]?.name ?? "shortSOL"} Position</h3>
 
       <div className="position-rows">
         <div className="position-row">
           <span className="position-label">Balance</span>
-          <span className="position-value">{balanceNum.toFixed(4)} sSol</span>
+          <span className="position-value">{balanceNum.toFixed(4)} {POOLS[poolId]?.name ?? "sSol"}</span>
         </div>
         <div className="position-row">
           <span className="position-label">Entry</span>
           <span className="position-value">
-            ${entrySolPriceUsd.toFixed(2)} SOL → ${entryShortsolPriceUsd.toFixed(2)} sSol
+            ${entrySolPriceUsd.toFixed(2)} {POOLS[poolId]?.asset ?? "SOL"} → ${entryShortsolPriceUsd.toFixed(2)} {POOLS[poolId]?.name ?? "sSol"}
           </span>
         </div>
         <div className="position-row">
           <span className="position-label">Current</span>
           <span className="position-value">
-            ${solPriceUsd.toFixed(2)} SOL → ${shortsolPriceUsd.toFixed(2)} sSol
+            ${solPriceUsd.toFixed(2)} {POOLS[poolId]?.asset ?? "SOL"} → ${shortsolPriceUsd.toFixed(2)} {POOLS[poolId]?.name ?? "sSol"}
           </span>
         </div>
         <div className="position-row">

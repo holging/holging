@@ -6,21 +6,23 @@ import { useSolshort } from "../hooks/useSolshort";
 import { usdcToLamports, calcDynamicFee } from "../utils/math";
 import { usePool } from "../hooks/usePool";
 import { usePythPrice } from "../hooks/usePythPrice";
+import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import BN from "bn.js";
 
 interface MintFormProps {
   usdcMint: string | null;
+  poolId?: string;
   onSuccess?: () => void;
 }
 
-export function MintForm({ usdcMint, onSuccess }: MintFormProps) {
+export function MintForm({ usdcMint, poolId = DEFAULT_POOL_ID, onSuccess }: MintFormProps) {
   const [amount, setAmount] = useState("");
   const [balance, setBalance] = useState<number>(0);
-  const { mint, loading, error, txSig } = useSolshort();
+  const { mint, loading, error, txSig } = useSolshort(poolId);
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
-  const { pool } = usePool();
-  const { solPriceUsd: solPrice } = usePythPrice();
+  const { pool } = usePool(poolId);
+  const { solPriceUsd: solPrice } = usePythPrice(POOLS[poolId]?.feedId);
 
   const dynamicFeeBps = pool && solPrice
     ? calcDynamicFee(
@@ -63,9 +65,9 @@ export function MintForm({ usdcMint, onSuccess }: MintFormProps) {
 
   return (
     <div className="form-card">
-      <h3>Mint shortSOL</h3>
+      <h3>Mint {POOLS[poolId]?.name ?? "shortSOL"}</h3>
       <p className="form-desc">
-        Deposit USDC to receive shortSOL tokens
+        Deposit USDC to receive {POOLS[poolId]?.name ?? "shortSOL"} tokens
         {dynamicFeeBps !== null && ` | Fee: ${(dynamicFeeBps / 100).toFixed(2)}%`}
       </p>
       <div className="input-group">
@@ -98,7 +100,7 @@ export function MintForm({ usdcMint, onSuccess }: MintFormProps) {
         <p className="error">Amount must be positive</p>
       )}
       <button onClick={handleMint} disabled={loading || !isValid || !usdcMint}>
-        {loading ? "Minting..." : "Mint shortSOL"}
+        {loading ? "Minting..." : `Mint ${POOLS[poolId]?.name ?? "shortSOL"}`}
       </button>
       {error && <p className="error">{error}</p>}
       {txSig && (

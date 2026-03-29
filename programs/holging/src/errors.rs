@@ -38,6 +38,8 @@ pub enum SolshortError {
     BelowMinLpDeposit,
     #[msg("LP system not initialized — call initialize_lp first")]
     LpNotInitialized,
+    #[msg("FundingConfig exists but was not passed — pass funding_config account")]
+    FundingConfigRequired,
     #[msg("No fees to claim")]
     NoFeesToClaim,
     #[msg("Insufficient LP shares")]

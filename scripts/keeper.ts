@@ -1,5 +1,6 @@
 /**
  * Funding Keeper — периодически вызывает accrue_funding для decay k.
+ * Обслуживает все пулы: SOL, TSLA, SPY, AAPL.
  *
  * Запуск:
  *   npx ts-node scripts/keeper.ts
@@ -19,10 +20,16 @@ import * as path from "path";
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const DEVNET_RPC = process.env.RPC_URL || "https://api.devnet.solana.com";
-const POOL_ID = "sol";
 const INTERVAL_SECS = parseInt(process.env.KEEPER_INTERVAL_SECS || "3600", 10);
 const HERMES_URL = "https://hermes.pyth.network";
-const SOL_USD_FEED_ID = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+
+// Multi-pool configuration
+const POOLS = [
+  { poolId: "sol",  feedId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d" },
+  { poolId: "tsla", feedId: "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1" },
+  { poolId: "spy",  feedId: "19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5" },
+  { poolId: "aapl", feedId: "49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688" },
+];
 
 // PDA seeds
 const POOL_SEED = Buffer.from("pool");
@@ -30,9 +37,9 @@ const FUNDING_SEED = Buffer.from("funding");
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function fetchPriceUpdateData(): Promise<string[]> {
+async function fetchPriceUpdateData(feedId: string): Promise<string[]> {
   const resp = await fetch(
-    `${HERMES_URL}/v2/updates/price/latest?ids[]=${SOL_USD_FEED_ID}&encoding=base64`
+    `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&encoding=base64`
   );
   if (!resp.ok) throw new Error(`Hermes API error: ${resp.status}`);
   const data = await resp.json();
@@ -64,12 +71,14 @@ async function sendVersionedTxs(
   return lastSig;
 }
 
-// ─── Main loop ───────────────────────────────────────────────────────────────
+// ─── Per-pool funding ───────────────────────────────────────────────────────
 
-async function accrueFunding(
+async function accrueFundingForPool(
   program: anchor.Program,
   connection: Connection,
   wallet: anchor.Wallet,
+  poolId: string,
+  feedId: string,
   poolPda: PublicKey,
   fundingConfigPda: PublicKey
 ): Promise<void> {
@@ -78,7 +87,7 @@ async function accrueFunding(
   try {
     fundingAcc = await (program.account as any).fundingConfig.fetch(fundingConfigPda);
   } catch {
-    console.log("[keeper] FundingConfig не найден — initialize_funding не вызывался. Пропускаю.");
+    console.log(`[keeper:${poolId}] FundingConfig не найден — пропускаю.`);
     return;
   }
 
@@ -86,10 +95,10 @@ async function accrueFunding(
   const elapsed = now - fundingAcc.lastFundingAt.toNumber();
   const rateBps = fundingAcc.rateBps;
 
-  console.log(`[keeper] elapsed=${elapsed}s  rate=${rateBps}bps/day`);
+  console.log(`[keeper:${poolId}] elapsed=${elapsed}s  rate=${rateBps}bps/day`);
 
   if (elapsed < 60) {
-    console.log("[keeper] Слишком мало времени прошло (<60s), пропускаю.");
+    console.log(`[keeper:${poolId}] Слишком мало времени прошло (<60s), пропускаю.`);
     return;
   }
 
@@ -98,7 +107,7 @@ async function accrueFunding(
   const kBefore = poolAcc.k.toString();
 
   // Получаем VAA с Hermes и постим price update на цепочку
-  const priceFeedUpdateData = await fetchPriceUpdateData();
+  const priceFeedUpdateData = await fetchPriceUpdateData(feedId);
   const pythReceiver = new PythSolanaReceiver({
     connection,
     wallet: wallet as any,
@@ -113,13 +122,13 @@ async function accrueFunding(
   await txBuilder.addPriceConsumerInstructions(
     async (getPriceUpdateAccount) => {
       try {
-        priceUpdateAccount = getPriceUpdateAccount("0x" + SOL_USD_FEED_ID);
+        priceUpdateAccount = getPriceUpdateAccount("0x" + feedId);
       } catch {
-        priceUpdateAccount = getPriceUpdateAccount(SOL_USD_FEED_ID);
+        priceUpdateAccount = getPriceUpdateAccount(feedId);
       }
 
       const accrueIx = await (program.methods as any)
-        .accrueFunding(POOL_ID)
+        .accrueFunding(poolId)
         .accounts({
           poolState: poolPda,
           fundingConfig: fundingConfigPda,
@@ -141,9 +150,9 @@ async function accrueFunding(
   const poolAccAfter: any = await (program.account as any).poolState.fetch(poolPda);
   const kAfter = poolAccAfter.k.toString();
 
-  console.log(`[keeper] ✓ accrue_funding  sig=${sig}`);
-  console.log(`[keeper]   k: ${kBefore} → ${kAfter}`);
-  console.log(`[keeper]   explorer: https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+  console.log(`[keeper:${poolId}] ✓ accrue_funding  sig=${sig}`);
+  console.log(`[keeper:${poolId}]   k: ${kBefore} → ${kAfter}`);
+  console.log(`[keeper:${poolId}]   explorer: https://explorer.solana.com/tx/${sig}?cluster=devnet`);
 }
 
 async function main() {
@@ -167,27 +176,32 @@ async function main() {
   const idlPath = path.resolve(__dirname, "../target/idl/solshort.json");
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
   const program = new anchor.Program(idl, provider);
-
   const programId = new PublicKey(idl.address);
-  const poolIdBuf = Buffer.from(POOL_ID);
-  const [poolPda] = PublicKey.findProgramAddressSync([POOL_SEED, poolIdBuf], programId);
-  const [fundingConfigPda] = PublicKey.findProgramAddressSync(
-    [FUNDING_SEED, poolPda.toBuffer()],
-    programId
-  );
 
-  console.log(`[keeper] Запуск. Интервал: ${INTERVAL_SECS}s`);
+  // Derive PDAs for all pools
+  const poolConfigs = POOLS.map(({ poolId, feedId }) => {
+    const poolIdBuf = Buffer.from(poolId);
+    const [poolPda] = PublicKey.findProgramAddressSync([POOL_SEED, poolIdBuf], programId);
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED, poolPda.toBuffer()],
+      programId
+    );
+    return { poolId, feedId, poolPda, fundingConfigPda };
+  });
+
+  console.log(`[keeper] Запуск. Интервал: ${INTERVAL_SECS}s. Пулы: ${POOLS.map(p => p.poolId).join(", ")}`);
   console.log(`[keeper] Keeper wallet: ${keypair.publicKey.toBase58()}`);
-  console.log(`[keeper] Pool PDA:      ${poolPda.toBase58()}`);
-  console.log(`[keeper] FundingConfig: ${fundingConfigPda.toBase58()}`);
   console.log(`[keeper] RPC: ${DEVNET_RPC}`);
+  for (const cfg of poolConfigs) {
+    console.log(`[keeper] Pool ${cfg.poolId}: ${cfg.poolPda.toBase58()}`);
+  }
 
   // Первый вызов сразу при старте
-  await runOnce(program, connection, wallet, poolPda, fundingConfigPda);
+  await runOnce(program, connection, wallet, poolConfigs);
 
   // Затем по интервалу
   setInterval(
-    () => runOnce(program, connection, wallet, poolPda, fundingConfigPda),
+    () => runOnce(program, connection, wallet, poolConfigs),
     INTERVAL_SECS * 1000
   );
 }
@@ -196,13 +210,17 @@ async function runOnce(
   program: anchor.Program,
   connection: Connection,
   wallet: anchor.Wallet,
-  poolPda: PublicKey,
-  fundingConfigPda: PublicKey
+  poolConfigs: { poolId: string; feedId: string; poolPda: PublicKey; fundingConfigPda: PublicKey }[]
 ) {
-  try {
-    await accrueFunding(program, connection, wallet, poolPda, fundingConfigPda);
-  } catch (err: any) {
-    console.error(`[keeper] Ошибка:`, err?.message ?? err);
+  for (const cfg of poolConfigs) {
+    try {
+      await accrueFundingForPool(
+        program, connection, wallet,
+        cfg.poolId, cfg.feedId, cfg.poolPda, cfg.fundingConfigPda
+      );
+    } catch (err: any) {
+      console.error(`[keeper:${cfg.poolId}] Ошибка:`, err?.message ?? err);
+    }
   }
 }
 

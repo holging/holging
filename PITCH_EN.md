@@ -70,7 +70,7 @@ Paradigm Research confirms: "Everything Is A Perp" — the market is moving towa
 - **Vault reconciliation** (post-CPI balance verification)
 - **Slippage protection** (1% default tolerance)
 - **Rate limiting** (2s cooldown, anti-sandwich)
-- **Live demo:** https://holging.netlify.app
+- **Live demo:** https://holging.com
 - **Formally verified** (Lean 4, 8 theorems)
 - **Program ID:** `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
 
@@ -101,7 +101,7 @@ Paradigm Research confirms: "Everything Is A Perp" — the market is moving towa
 | Frontend | React 19 + Vite 7 + TypeScript |
 | Formal Verification | Lean 4 + Mathlib (8 theorems) |
 | Keeper | Node.js (scripts/keeper.ts), permissionless |
-| Hosting | Netlify |
+| Hosting | holging.com |
 
 ---
 

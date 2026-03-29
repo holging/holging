@@ -4,6 +4,7 @@ import { usePool } from "../hooks/usePool";
 import { usePythPrice } from "../hooks/usePythPrice";
 import { useSolshort } from "../hooks/useSolshort";
 import { PROGRAM_ID } from "../utils/program";
+import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import {
   calcShortsolPrice,
   calcRequiredLiquidity,
@@ -34,10 +35,10 @@ const PRESETS = [
   { label: "Aggressive", drop: 0.75 },
 ];
 
-export function RiskDashboard() {
-  const { pool, refresh: refreshPool } = usePool();
-  const { solPriceUsd } = usePythPrice();
-  const { addLiquidity, setPause, updateK, loading: txLoading, error: txError } = useSolshort();
+export function RiskDashboard({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
+  const { pool, refresh: refreshPool } = usePool(poolId);
+  const { solPriceUsd } = usePythPrice(POOLS[poolId]?.feedId);
+  const { addLiquidity, setPause, updateK, loading: txLoading, error: txError } = useSolshort(poolId);
 
   // Calculator inputs
   const [targetTvl, setTargetTvl] = useState(100_000);
@@ -216,7 +217,7 @@ export function RiskDashboard() {
               </div>
               <div className="risk-row">
                 <span>Circulating</span>
-                <span>{circulatingHuman.toFixed(4)} sSol</span>
+                <span>{circulatingHuman.toFixed(4)} {POOLS[poolId]?.name ?? "sSol"}</span>
               </div>
               <div className="risk-row">
                 <span>Total Minted / Redeemed</span>

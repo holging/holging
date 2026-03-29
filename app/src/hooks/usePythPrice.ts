@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchSolPrice, pythPriceToUsd, type PythPrice } from "../utils/pyth";
+import { fetchSolPrice, pythPriceToUsd, SOL_USD_FEED_ID, type PythPrice } from "../utils/pyth";
 
-export function usePythPrice(intervalMs = 5000) {
+export function usePythPrice(feedId: string = SOL_USD_FEED_ID, intervalMs = 5000) {
   const [solPriceUsd, setSolPriceUsd] = useState<number | null>(null);
   const [raw, setRaw] = useState<PythPrice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -9,7 +9,7 @@ export function usePythPrice(intervalMs = 5000) {
 
   const refresh = useCallback(async () => {
     try {
-      const p = await fetchSolPrice();
+      const p = await fetchSolPrice(feedId);
       setRaw(p);
       setSolPriceUsd(pythPriceToUsd(p));
       setError(null);
@@ -18,7 +18,7 @@ export function usePythPrice(intervalMs = 5000) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [feedId]);
 
   useEffect(() => {
     refresh();
