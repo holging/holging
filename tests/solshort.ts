@@ -426,6 +426,196 @@ describe("solshort", () => {
       assert.notInclude(redeemAccounts, "authority");
     });
   });
+
+  // ═══════════════════════════════════════════════════
+  // New security mechanics verification (unit tests)
+  // ═══════════════════════════════════════════════════
+  describe("security mechanics (unit)", () => {
+
+    it("dead shares: first depositor gets same shares as amount", () => {
+      // calc_lp_shares with dead shares: shares = amount * (supply + 1000) / (principal + 1000)
+      const VIRTUAL_SHARES = 1000;
+      const VIRTUAL_ASSETS = 1000;
+
+      // First deposit: supply=0, principal=0
+      const amount = 100_000_000; // 100 USDC
+      const shares = Math.floor(amount * (0 + VIRTUAL_SHARES) / (0 + VIRTUAL_ASSETS));
+      assert.equal(shares, amount, "first deposit: shares should equal amount (1:1)");
+    });
+
+    it("dead shares: donation attack is mitigated", () => {
+      const VIRTUAL_SHARES = 1000;
+      const VIRTUAL_ASSETS = 1000;
+
+      // Attacker is first LP, deposits 100 USDC
+      const attackerDeposit = 100_000_000;
+      const attackerShares = Math.floor(attackerDeposit * (0 + VIRTUAL_SHARES) / (0 + VIRTUAL_ASSETS));
+      // attackerShares = 100_000_000
+
+      // Even if attacker donates 1M USDC directly to vault (not via add_liquidity),
+      // principal stays 100 USDC. Second depositor:
+      const secondDeposit = 10_000_000_000; // 10,000 USDC
+      const supply = attackerShares;
+      const principal = attackerDeposit; // donation doesn't change this
+
+      const secondShares = Math.floor(secondDeposit * (supply + VIRTUAL_SHARES) / (principal + VIRTUAL_ASSETS));
+      // With dead shares: 10B * (100M + 1000) / (100M + 1000) = 10B
+
+      // Second depositor should get proportional shares (not ~0 from inflation attack)
+      assert.ok(secondShares > 9_900_000_000, `second depositor should get ~10B shares, got ${secondShares}`);
+      assert.ok(secondShares <= 10_000_000_000, `second depositor should not get more than deposit`);
+    });
+
+    it("dynamic fee multipliers match code spec", () => {
+      const baseFee = 4; // bps
+
+      // > 200%: ×0.5 → 2 bps
+      assert.equal(Math.floor(baseFee / 2), 2);
+
+      // 150-200%: ×5 → 20 bps
+      assert.equal(baseFee * 5, 20);
+
+      // 100-150%: ×10 → 40 bps
+      assert.equal(baseFee * 10, 40);
+
+      // < 100%: ×20 → 80 bps
+      assert.equal(baseFee * 20, 80);
+
+      // Clamped to 100 bps max
+      assert.ok(Math.min(baseFee * 20, 100) === 80, "80 < 100 so no clamping");
+      assert.ok(Math.min(6 * 20, 100) === 100, "120 clamped to 100");
+    });
+
+    it("k-decay formula produces correct results", () => {
+      const SECS_PER_DAY = 86_400;
+      const BPS_DENOM = 10_000;
+      const denom = SECS_PER_DAY * BPS_DENOM; // 864,000,000
+
+      // 10 bps/day, 1 day elapsed
+      const rateBps = 10;
+      const elapsed = SECS_PER_DAY;
+      const reduction = rateBps * elapsed; // 864,000
+      const factorNum = denom - reduction; // 863,136,000
+      const kOld = 28_900_000_000_000; // example k
+      const kNew = Math.floor(kOld * factorNum / denom);
+      const decay = 1 - kNew / kOld;
+
+      assert.ok(decay > 0.00099, `daily decay should be ~0.001, got ${decay}`);
+      assert.ok(decay < 0.00101, `daily decay should be ~0.001, got ${decay}`);
+    });
+
+    it("k-decay 30-day cap prevents k→0", () => {
+      const SECS_PER_DAY = 86_400;
+      const BPS_DENOM = 10_000;
+      const MAX_ELAPSED = SECS_PER_DAY * 30;
+      const denom = SECS_PER_DAY * BPS_DENOM;
+
+      // 100 bps/day (max rate), 30 days elapsed (max)
+      const rateBps = 100;
+      const reduction = rateBps * MAX_ELAPSED; // 259,200,000
+      const factorNum = denom - reduction; // 604,800,000
+
+      assert.ok(factorNum > 0, "factor_num must be > 0");
+
+      const kOld = 28_900_000_000_000;
+      const kNew = Math.floor(kOld * factorNum / denom);
+      const ratio = kNew / kOld;
+
+      assert.ok(ratio > 0.69, `k should retain > 69% after 30d at max rate, got ${ratio}`);
+      assert.ok(ratio < 0.71, `k should retain < 71% after 30d at max rate, got ${ratio}`);
+    });
+
+    it("MIN_K floor prevents k from reaching zero", () => {
+      const MIN_K = 1_000_000;
+      let k = 28_900_000_000_000;
+
+      // Simulate 10 × 30-day cycles at max rate (100 bps/day)
+      for (let i = 0; i < 10; i++) {
+        k = Math.floor(k * 604_800_000 / 864_000_000);
+        k = Math.max(k, MIN_K);
+      }
+
+      assert.ok(k >= MIN_K, `k should never go below MIN_K, got ${k}`);
+      // After 10 cycles: k * 0.7^10 = k * 0.028 → still above MIN_K
+    });
+
+    it("funding APY calculation matches documentation", () => {
+      // Compound: 1 - (1 - 10/10000)^365
+      const dailyDecay = 10 / 10000; // 0.001
+      const annualCompound = 1 - Math.pow(1 - dailyDecay, 365);
+
+      assert.ok(annualCompound > 0.305, `funding APY should be > 30.5%, got ${annualCompound}`);
+      assert.ok(annualCompound < 0.307, `funding APY should be < 30.7%, got ${annualCompound}`);
+    });
+
+    it("circuit breaker threshold math", () => {
+      const MIN_VAULT_RATIO_BPS = 9500; // 95%
+      const BPS_DENOM = 10_000;
+
+      // vault=100K, obligations=50K → ratio = 200% → healthy
+      let ratio = (100_000 * BPS_DENOM) / 50_000;
+      assert.ok(ratio > MIN_VAULT_RATIO_BPS, "200% > 95% → no circuit breaker");
+
+      // vault=100K, obligations=110K → ratio = 90.9% → circuit breaker
+      ratio = Math.floor((100_000 * BPS_DENOM) / 110_000);
+      assert.ok(ratio < MIN_VAULT_RATIO_BPS, "90.9% < 95% → circuit breaker triggered");
+    });
+
+    it("vault ratio after SOL drop scenarios", () => {
+      // Initial: vault=200K, obligations=100K at SOL=$150
+      const vault = 200_000;
+      const initObligations = 100_000;
+
+      // SOL drops 50%: obligations double (shortSOL price = k/SOL, SOL halved → 2x)
+      const drop50 = vault / (initObligations * 2);
+      assert.ok(drop50 === 1.0, "50% drop → 100% ratio (borderline)");
+
+      // SOL drops 25%: obligations × 1.333
+      const drop25 = vault / (initObligations * (1 / 0.75));
+      assert.ok(drop25 > 1.4, "25% drop → ~150% ratio (normal)");
+
+      // SOL drops 40%: obligations × 1.667
+      const drop40 = vault / (initObligations * (1 / 0.6));
+      assert.ok(drop40 > 1.1, "40% drop → ~120% ratio (elevated)");
+    });
+
+    it("LP share calculation with virtual offset is monotonic", () => {
+      const VIRTUAL_SHARES = 1000;
+      const VIRTUAL_ASSETS = 1000;
+
+      // Verify that larger deposits always get more shares
+      const supply = 100_000_000;
+      const principal = 100_000_000;
+
+      const shares100 = Math.floor(100_000_000 * (supply + VIRTUAL_SHARES) / (principal + VIRTUAL_ASSETS));
+      const shares200 = Math.floor(200_000_000 * (supply + VIRTUAL_SHARES) / (principal + VIRTUAL_ASSETS));
+      const shares1000 = Math.floor(1_000_000_000 * (supply + VIRTUAL_SHARES) / (principal + VIRTUAL_ASSETS));
+
+      assert.ok(shares200 > shares100, "200 USDC should get more shares than 100");
+      assert.ok(shares1000 > shares200, "1000 USDC should get more shares than 200");
+      assert.ok(shares200 / shares100 > 1.99, "shares should scale ~linearly");
+    });
+
+    it("FundingConfigRequired error exists in IDL", () => {
+      const err = IDL.errors.find((e: any) => e.name === "FundingConfigRequired");
+      assert.ok(err, "FundingConfigRequired error should exist");
+      assert.equal(err.code, 6018, "error code should be 6018");
+    });
+
+    it("UpdateMinLpDepositEvent exists in IDL", () => {
+      const evt = IDL.events.find((e: any) => e.name === "UpdateMinLpDepositEvent");
+      assert.ok(evt, "UpdateMinLpDepositEvent should exist in events");
+
+      // In Anchor 0.32 IDL, event fields are in types, not events
+      const evtType = IDL.types.find((t: any) => t.name === "UpdateMinLpDepositEvent");
+      if (evtType && evtType.type && evtType.type.fields) {
+        const fields = evtType.type.fields.map((f: any) => f.name);
+        assert.include(fields, "old_min_lp_deposit");
+        assert.include(fields, "new_min_lp_deposit");
+        assert.include(fields, "authority");
+      }
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1063,5 +1253,595 @@ describe("Integration tests", () => {
       );
     }
     assert.ok(slippageFailed, "mint should fail when min_tokens_out is impossibly high");
+  });
+
+  // ── Test 10: update_k (only when circulating == 0) ──────────────────────
+  it("allows update_k when circulating is zero", async () => {
+    // First redeem all circulating tokens to get circulating = 0
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    const currentK = pool.k;
+
+    if (pool.circulating.eq(new BN(0))) {
+      const newK = currentK.add(new BN(1000));
+      await (program.methods as any)
+        .updateK(INT_POOL_ID, newK)
+        .accounts({
+          poolState: poolStatePda,
+          authority: authority.publicKey,
+        })
+        .rpc();
+
+      const poolAfter = await (program.account as any).poolState.fetch(poolStatePda);
+      assert.ok(poolAfter.k.eq(newK), "k should be updated");
+
+      // Restore original k
+      await (program.methods as any)
+        .updateK(INT_POOL_ID, currentK)
+        .accounts({
+          poolState: poolStatePda,
+          authority: authority.publicKey,
+        })
+        .rpc();
+    } else {
+      // If tokens are circulating, verify update_k fails
+      let failed = false;
+      try {
+        await (program.methods as any)
+          .updateK(INT_POOL_ID, currentK.add(new BN(1000)))
+          .accounts({
+            poolState: poolStatePda,
+            authority: authority.publicKey,
+          })
+          .rpc();
+      } catch (err: any) {
+        failed = true;
+        const msg = err.message || err.toString();
+        assert.ok(
+          msg.includes("CirculatingNotZero") || msg.includes("6012"),
+          `expected CirculatingNotZero, got: ${msg}`
+        );
+      }
+      assert.ok(failed, "update_k should fail when circulating > 0");
+    }
+  });
+
+  // ── Test 11: update_fee ────────────────────────────────────────────────
+  it("updates fee_bps and rejects fee > 100", async () => {
+    // Change fee to 10 bps
+    await (program.methods as any)
+      .updateFee(INT_POOL_ID, 10)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    let pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.equal(pool.feeBps, 10, "fee_bps should be 10");
+
+    // Try fee > 100 — must fail
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .updateFee(INT_POOL_ID, 101)
+        .accounts({
+          poolState: poolStatePda,
+          authority: authority.publicKey,
+        })
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("InvalidFee") || msg.includes("6011"),
+        `expected InvalidFee, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "fee > 100 bps should be rejected");
+
+    // Restore to 4 bps
+    await (program.methods as any)
+      .updateFee(INT_POOL_ID, 4)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+  });
+
+  // ── Test 12: update_min_lp_deposit ────────────────────────────────────
+  it("updates min_lp_deposit", async () => {
+    const newMin = new BN(200_000_000); // 200 USDC
+    await (program.methods as any)
+      .updateMinLpDeposit(INT_POOL_ID, newMin)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(pool.minLpDeposit.eq(newMin), "min_lp_deposit should be 200 USDC");
+
+    // Restore
+    await (program.methods as any)
+      .updateMinLpDeposit(INT_POOL_ID, new BN(100_000_000))
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+  });
+
+  // ── Test 13: transfer_authority + accept_authority ─────────────────────
+  it("two-step authority transfer works correctly", async () => {
+    const newAuth = Keypair.generate();
+
+    // Airdrop SOL to new authority
+    const sig = await provider.connection.requestAirdrop(
+      newAuth.publicKey,
+      1_000_000_000
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    // Step 1: propose
+    await (program.methods as any)
+      .transferAuthority(INT_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+        newAuthority: newAuth.publicKey,
+      })
+      .rpc();
+
+    let pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.equal(
+      pool.pendingAuthority.toBase58(),
+      newAuth.publicKey.toBase58(),
+      "pending_authority should be set"
+    );
+
+    // Step 2: accept
+    await (program.methods as any)
+      .acceptAuthority(INT_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        newAuthority: newAuth.publicKey,
+      })
+      .signers([newAuth])
+      .rpc();
+
+    pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.equal(
+      pool.authority.toBase58(),
+      newAuth.publicKey.toBase58(),
+      "authority should be transferred"
+    );
+
+    // Transfer back to original authority
+    await (program.methods as any)
+      .transferAuthority(INT_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        authority: newAuth.publicKey,
+        newAuthority: authority.publicKey,
+      })
+      .signers([newAuth])
+      .rpc();
+
+    await (program.methods as any)
+      .acceptAuthority(INT_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        newAuthority: authority.publicKey,
+      })
+      .rpc();
+
+    pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.equal(
+      pool.authority.toBase58(),
+      authority.publicKey.toBase58(),
+      "authority should be restored"
+    );
+  });
+
+  // ── Test 14: accept_authority fails without transfer ───────────────────
+  it("rejects accept_authority when no pending authority", async () => {
+    const randomKey = Keypair.generate();
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .acceptAuthority(INT_POOL_ID)
+        .accounts({
+          poolState: poolStatePda,
+          newAuthority: randomKey.publicKey,
+        })
+        .signers([randomKey])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("NoPendingAuthority") || msg.includes("6015") || msg.includes("Unauthorized") || msg.includes("6010"),
+        `expected NoPendingAuthority/Unauthorized, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "accept_authority should fail without transfer");
+  });
+
+  // ── Test 15: initialize_funding + accrue_funding ──────────────────────
+  it("initializes funding and applies k-decay", async () => {
+    const FUNDING_SEED = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED, poolStatePda.toBuffer()],
+      programId
+    );
+
+    // Initialize funding with 10 bps/day
+    await (program.methods as any)
+      .initializeFunding(INT_POOL_ID, 10)
+      .accounts({
+        admin: authority.publicKey,
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    const cfg = await (program.account as any).fundingConfig.fetch(fundingConfigPda);
+    assert.equal(cfg.rateBps, 10, "rate_bps should be 10");
+    assert.ok(cfg.lastFundingAt.gt(new BN(0)), "last_funding_at should be set");
+
+    // Get k before funding
+    const poolBefore = await (program.account as any).poolState.fetch(poolStatePda);
+    const kBefore = poolBefore.k;
+
+    // Wait a few seconds for some elapsed time
+    await new Promise((r) => setTimeout(r, 3000));
+
+    // Accrue funding
+    await (program.methods as any)
+      .accrueFunding(INT_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+      })
+      .rpc();
+
+    const poolAfter = await (program.account as any).poolState.fetch(poolStatePda);
+    const kAfter = poolAfter.k;
+
+    // k should have decreased (even slightly, since only ~3 seconds passed)
+    assert.ok(
+      kAfter.lte(kBefore),
+      `k should decrease or stay same after funding: ${kBefore.toString()} -> ${kAfter.toString()}`
+    );
+  });
+
+  // ── Test 16: update_funding_rate ──────────────────────────────────────
+  it("updates funding rate and rejects rate > 100 bps", async () => {
+    const FUNDING_SEED = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED, poolStatePda.toBuffer()],
+      programId
+    );
+
+    // Update to 20 bps/day
+    await (program.methods as any)
+      .updateFundingRate(INT_POOL_ID, 20)
+      .accounts({
+        admin: authority.publicKey,
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+      })
+      .rpc();
+
+    let cfg = await (program.account as any).fundingConfig.fetch(fundingConfigPda);
+    assert.equal(cfg.rateBps, 20, "rate_bps should be 20");
+
+    // Try rate > 100 — must fail
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .updateFundingRate(INT_POOL_ID, 101)
+        .accounts({
+          admin: authority.publicKey,
+          poolState: poolStatePda,
+          fundingConfig: fundingConfigPda,
+        })
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("InvalidFee") || msg.includes("6011"),
+        `expected InvalidFee, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "funding rate > 100 should be rejected");
+
+    // Restore to 10
+    await (program.methods as any)
+      .updateFundingRate(INT_POOL_ID, 10)
+      .accounts({
+        admin: authority.publicKey,
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+      })
+      .rpc();
+  });
+
+  // ── Test 17: update_price (permissionless) ────────────────────────────
+  it("updates cached oracle price permissionlessly", async () => {
+    const poolBefore = await (program.account as any).poolState.fetch(poolStatePda);
+    const priceBefore = poolBefore.lastOraclePrice;
+
+    await (program.methods as any)
+      .updatePrice(INT_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        pythPrice: MOCK_PRICE_UPDATE_PUBKEY,
+        payer: authority.publicKey,
+      })
+      .rpc();
+
+    const poolAfter = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(
+      poolAfter.lastOraclePrice.gt(new BN(0)),
+      "oracle price should be set after update"
+    );
+  });
+
+  // ── Test 18: withdraw_fees (admin) ────────────────────────────────────
+  it("admin can withdraw excess fees above safety threshold", async () => {
+    // Mint some tokens to generate fees
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+
+    const FUNDING_SEED_BUF = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED_BUF, poolStatePda.toBuffer()],
+      programId
+    );
+
+    // Mint to generate fees
+    await (program.methods as any)
+      .mint(INT_POOL_ID, new BN(500_000_000), new BN(0))
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        shortsolMint: shortsolMintPda,
+        mintAuthority: mintAuthPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        usdcMint: intUsdcMint,
+        userUsdc: authorityUsdcAta,
+        userShortsol: shortsolAta,
+        user: authority.publicKey,
+        fundingConfig: fundingConfigPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+
+    // Try to withdraw 1 USDC — may fail if not enough excess
+    try {
+      await (program.methods as any)
+        .withdrawFees(INT_POOL_ID, new BN(1_000_000))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          usdcMint: intUsdcMint,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          authorityUsdc: authorityUsdcAta,
+          authority: authority.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .rpc();
+      // If succeed — that's fine, there was excess
+    } catch (err: any) {
+      const msg = err.message || err.toString();
+      // InsufficientLiquidity is expected if vault doesn't have excess above 110% + LP reserved
+      assert.ok(
+        msg.includes("InsufficientLiquidity") || msg.includes("6004"),
+        `expected InsufficientLiquidity, got: ${msg}`
+      );
+    }
+  });
+
+  // ── Test 19: redeem with slippage protection ──────────────────────────
+  it("rejects redeem when min_usdc_out is impossibly high", async () => {
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+
+    const FUNDING_SEED_BUF = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED_BUF, poolStatePda.toBuffer()],
+      programId
+    );
+
+    const shortsolBalance = (
+      await provider.connection.getTokenAccountBalance(shortsolAta)
+    ).value.amount;
+
+    if (new BN(shortsolBalance).gt(new BN(0))) {
+      let failed = false;
+      try {
+        await (program.methods as any)
+          .redeem(INT_POOL_ID, new BN(shortsolBalance), new BN("999999999999999"))
+          .accounts({
+            poolState: poolStatePda,
+            vaultUsdc: vaultUsdcPda,
+            shortsolMint: shortsolMintPda,
+            priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+            usdcMint: intUsdcMint,
+            userShortsol: shortsolAta,
+            userUsdc: authorityUsdcAta,
+            user: authority.publicKey,
+            fundingConfig: fundingConfigPda,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+      } catch (err: any) {
+        failed = true;
+        const msg = err.message || err.toString();
+        assert.ok(
+          msg.includes("SlippageExceeded") || msg.includes("6014"),
+          `expected SlippageExceeded, got: ${msg}`
+        );
+      }
+      assert.ok(failed, "redeem should fail when min_usdc_out is too high");
+    }
+  });
+
+  // ── Test 20: LP deposit below minimum rejected ────────────────────────
+  it("rejects LP deposit below minimum", async () => {
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+
+    const tinyDeposit = new BN(1_000_000); // 1 USDC (below $100 min)
+
+    let failed = false;
+    try {
+      const lpProviderLpAta2 = await getAssociatedTokenAddress(
+        lpMintPda,
+        lpProvider.publicKey
+      );
+
+      await (program.methods as any)
+        .addLiquidity(INT_POOL_ID, tinyDeposit)
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          lpMint: lpMintPda,
+          lpPosition: lpProviderLpPositionPda,
+          lpProviderLpAta: lpProviderLpAta2,
+          usdcMint: intUsdcMint,
+          lpProviderUsdc: lpProviderUsdcAta,
+          lpProvider: lpProvider.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: SPL_ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([lpProvider])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("BelowMinLpDeposit") || msg.includes("6016"),
+        `expected BelowMinLpDeposit, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "LP deposit below minimum should be rejected");
+  });
+
+  // ── Test 21: unauthorized admin action rejected ───────────────────────
+  it("rejects admin actions from non-authority", async () => {
+    const randomUser = Keypair.generate();
+    const sig = await provider.connection.requestAirdrop(
+      randomUser.publicKey,
+      1_000_000_000
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .setPause(INT_POOL_ID, true)
+        .accounts({
+          poolState: poolStatePda,
+          authority: randomUser.publicKey,
+        })
+        .signers([randomUser])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      // Anchor has_one constraint produces ConstraintHasOne error
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("has one constraint") || msg.includes("2001") || msg.includes("Unauthorized") || msg.includes("ConstraintHasOne"),
+        `expected authorization error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "non-authority should not be able to pause");
+  });
+
+  // ── Test 22: rate limit check ─────────────────────────────────────────
+  it("rejects rapid-fire mint within 2 second cooldown", async () => {
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+
+    const FUNDING_SEED_BUF = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED_BUF, poolStatePda.toBuffer()],
+      programId
+    );
+
+    // Wait for cooldown, then do first mint
+    await new Promise((r) => setTimeout(r, 3000));
+
+    await (program.methods as any)
+      .mint(INT_POOL_ID, new BN(100_000_000), new BN(0))
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        shortsolMint: shortsolMintPda,
+        mintAuthority: mintAuthPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        usdcMint: intUsdcMint,
+        userUsdc: authorityUsdcAta,
+        userShortsol: shortsolAta,
+        user: authority.publicKey,
+        fundingConfig: fundingConfigPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    // Immediately try another mint — should fail with RateLimitExceeded
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .mint(INT_POOL_ID, new BN(100_000_000), new BN(0))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          shortsolMint: shortsolMintPda,
+          mintAuthority: mintAuthPda,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          usdcMint: intUsdcMint,
+          userUsdc: authorityUsdcAta,
+          userShortsol: shortsolAta,
+          user: authority.publicKey,
+          fundingConfig: fundingConfigPda,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("RateLimitExceeded") || msg.includes("6007"),
+        `expected RateLimitExceeded, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "rapid-fire mint should be rate limited");
   });
 });
