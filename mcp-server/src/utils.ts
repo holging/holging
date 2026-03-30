@@ -140,13 +140,13 @@ export function calcDynamicFee(
   let fee: number;
   if (ratio > 20_000) {
     // > 200% — vault very healthy
-    fee = Math.floor(baseFee.toNumber() / 2);
+    fee = baseFee.toNumber() * 5;
   } else if (ratio > 15_000) {
     // 150-200% — normal
-    fee = baseFee.toNumber() * 5;
+    fee = baseFee.toNumber() * 10;
   } else if (ratio > 10_000) {
     // 100-150% — elevated
-    fee = baseFee.toNumber() * 10;
+    fee = baseFee.toNumber() * 15;
   } else {
     // < 100% — critical
     fee = baseFee.toNumber() * 20;

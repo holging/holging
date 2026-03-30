@@ -471,14 +471,14 @@ describe("holging", () => {
     it("dynamic fee multipliers match code spec", () => {
       const baseFee = 4; // bps
 
-      // > 200%: ×0.5 → 2 bps
-      assert.equal(Math.floor(baseFee / 2), 2);
-
-      // 150-200%: ×5 → 20 bps
+      // > 200%: ×5 → 20 bps
       assert.equal(baseFee * 5, 20);
 
-      // 100-150%: ×10 → 40 bps
+      // 150-200%: ×10 → 40 bps
       assert.equal(baseFee * 10, 40);
+
+      // 100-150%: ×15 → 60 bps
+      assert.equal(baseFee * 15, 60);
 
       // < 100%: ×20 → 80 bps
       assert.equal(baseFee * 20, 80);

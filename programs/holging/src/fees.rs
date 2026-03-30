@@ -58,13 +58,13 @@ pub fn calc_dynamic_fee(
 
     let fee = if ratio_bps > 20_000 {
         // > 200% — vault very healthy
-        (base_fee_bps as u64) / 2
+        (base_fee_bps as u64) * 5
     } else if ratio_bps > 15_000 {
         // 150-200% — normal
-        (base_fee_bps as u64) * 5
+        (base_fee_bps as u64) * 10
     } else if ratio_bps > 10_000 {
         // 100-150% — elevated
-        (base_fee_bps as u64) * 10
+        (base_fee_bps as u64) * 15
     } else {
         // < 100% — critical
         (base_fee_bps as u64) * 20

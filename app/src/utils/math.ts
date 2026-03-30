@@ -25,11 +25,11 @@ export function calcDynamicFee(
   const ratio = ratioBps.toNumber();
   let fee: number;
   if (ratio > 20_000) {
-    fee = Math.floor(baseFee.toNumber() / 2);
-  } else if (ratio > 15_000) {
     fee = baseFee.toNumber() * 5;
-  } else if (ratio > 10_000) {
+  } else if (ratio > 15_000) {
     fee = baseFee.toNumber() * 10;
+  } else if (ratio > 10_000) {
+    fee = baseFee.toNumber() * 15;
   } else {
     fee = baseFee.toNumber() * 20;
   }
