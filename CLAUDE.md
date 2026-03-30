@@ -3,12 +3,11 @@
 ## Deployment
 
 - **Production:** https://holging.com
-- **VPS:** `root@VPS_IP`
+- **API:** https://api.holging.com
 - **Web root:** `/var/www/holging/`
 - **Deploy command:** `rsync -avz --delete ~/Projects/holging/app/dist/ root@VPS_IP:/var/www/holging/`
 - **Server:** nginx + Let's Encrypt SSL
 - **Always build before deploy:** `cd ~/Projects/holging/app && npm run build`
-- Netlify (holging.netlify.app) is a backup mirror, NOT primary
 
 ## Project Structure
 

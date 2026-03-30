@@ -30,7 +30,7 @@ const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
 async function main() {
   // Load wallet
   const walletPath =
-    process.env.ANCHOR_WALLET || "${HOME}/solana-wallet.json";
+    process.env.ANCHOR_WALLET || `${process.env.HOME}/solana-wallet.json`;
   const rawKey = JSON.parse(fs.readFileSync(walletPath, "utf-8"));
   const keypair = Keypair.fromSecretKey(Uint8Array.from(rawKey));
   console.log("Authority:", keypair.publicKey.toBase58());
