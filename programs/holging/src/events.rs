@@ -115,6 +115,13 @@ pub struct LpFeeClaimedEvent {
 }
 
 #[event]
+pub struct UpdatePriceEvent {
+    pub old_price: u64,
+    pub new_price: u64,
+    pub timestamp: i64,
+}
+
+#[event]
 pub struct FundingDistributedEvent {
     pub freed_usdc: u64,
     pub fee_per_share_delta: u128,

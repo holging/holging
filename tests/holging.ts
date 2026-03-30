@@ -292,8 +292,8 @@ describe("holging", () => {
       assert.include(fieldNames, "mint_auth_bump");
     });
 
-    it("has 17 events", () => {
-      assert.equal(IDL.events.length, 17);
+    it("has 18 events", () => {
+      assert.equal(IDL.events.length, 18);
       const names = IDL.events.map((e: any) => e.name);
       assert.include(names, "MintEvent");
       assert.include(names, "RedeemEvent");
@@ -312,6 +312,7 @@ describe("holging", () => {
       assert.include(names, "LpFeeClaimedEvent");
       assert.include(names, "FundingDistributedEvent");
       assert.include(names, "UpdateMinLpDepositEvent");
+      assert.include(names, "UpdatePriceEvent");
     });
 
     it("mint instruction has min_tokens_out parameter (slippage protection)", () => {

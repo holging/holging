@@ -2221,6 +2221,19 @@
       ]
     },
     {
+      "name": "UpdatePriceEvent",
+      "discriminator": [
+        40,
+        189,
+        128,
+        187,
+        31,
+        28,
+        47,
+        17
+      ]
+    },
+    {
       "name": "WithdrawFeesEvent",
       "discriminator": [
         236,
@@ -3072,6 +3085,26 @@
           {
             "name": "authority",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdatePriceEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "old_price",
+            "type": "u64"
+          },
+          {
+            "name": "new_price",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }

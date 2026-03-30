@@ -3,6 +3,7 @@ use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
 use crate::constants::*;
 use crate::errors::SolshortError;
+use crate::events::UpdatePriceEvent;
 use crate::oracle;
 use crate::state::PoolState;
 
@@ -40,12 +41,11 @@ pub fn handler(ctx: Context<UpdatePrice>, _pool_id: String) -> Result<()> {
     // Timestamp is only updated by mint/redeem to prevent
     // permissionless update_price from resetting the rate limit.
 
-    msg!(
-        "Price updated: {} -> {} at ts={}",
+    emit!(UpdatePriceEvent {
         old_price,
-        oracle_price.price,
-        oracle_price.timestamp
-    );
+        new_price: oracle_price.price,
+        timestamp: oracle_price.timestamp,
+    });
 
     Ok(())
 }
