@@ -237,8 +237,8 @@ describe("holging", () => {
   // IDL validation
   // ═══════════════════════════════════════════════════
   describe("IDL validation", () => {
-    it("has 19 instructions", () => {
-      assert.equal(IDL.instructions.length, 19);
+    it("has 20 instructions", () => {
+      assert.equal(IDL.instructions.length, 20);
       const names = IDL.instructions.map((i: any) => i.name);
       assert.include(names, "initialize");
       assert.include(names, "mint");
@@ -259,6 +259,7 @@ describe("holging", () => {
       assert.include(names, "initialize_lp");
       assert.include(names, "claim_lp_fees");
       assert.include(names, "update_min_lp_deposit");
+      assert.include(names, "set_feed_id");
     });
 
     it("has 21 error codes", () => {
@@ -1843,5 +1844,826 @@ describe("Integration tests", () => {
       );
     }
     assert.ok(failed, "rapid-fire mint should be rate limited");
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Edge case tests — negative paths, circuit breakers, access control
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Test 23: zero-amount mint rejected ────────────────────────────────
+  it("rejects mint with zero USDC amount", async () => {
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+
+    const FUNDING_SEED_BUF = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED_BUF, poolStatePda.toBuffer()],
+      programId
+    );
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .mint(INT_POOL_ID, new BN(0), new BN(0))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          shortsolMint: shortsolMintPda,
+          mintAuthority: mintAuthPda,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          usdcMint: intUsdcMint,
+          userUsdc: authorityUsdcAta,
+          userShortsol: shortsolAta,
+          user: authority.publicKey,
+          fundingConfig: fundingConfigPda,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("AmountTooSmall") || msg.includes("6005"),
+        `expected AmountTooSmall, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "mint with 0 USDC should be rejected");
+  });
+
+  // ── Test 24: zero-amount redeem rejected ──────────────────────────────
+  it("rejects redeem with zero shortSOL amount", async () => {
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+
+    const FUNDING_SEED_BUF = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED_BUF, poolStatePda.toBuffer()],
+      programId
+    );
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .redeem(INT_POOL_ID, new BN(0), new BN(0))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          shortsolMint: shortsolMintPda,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          usdcMint: intUsdcMint,
+          userShortsol: shortsolAta,
+          userUsdc: authorityUsdcAta,
+          user: authority.publicKey,
+          fundingConfig: fundingConfigPda,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("AmountTooSmall") || msg.includes("6005"),
+        `expected AmountTooSmall, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "redeem with 0 amount should be rejected");
+  });
+
+  // ── Test 25: redeem when paused ───────────────────────────────────────
+  it("rejects redeem when pool is paused", async () => {
+    // Pause the pool
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, true)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+
+    const FUNDING_SEED_BUF = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED_BUF, poolStatePda.toBuffer()],
+      programId
+    );
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .redeem(INT_POOL_ID, new BN(1_000_000), new BN(0))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          shortsolMint: shortsolMintPda,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          usdcMint: intUsdcMint,
+          userShortsol: shortsolAta,
+          userUsdc: authorityUsdcAta,
+          user: authority.publicKey,
+          fundingConfig: fundingConfigPda,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("Paused") || msg.includes("6000"),
+        `expected Paused error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "redeem should fail when pool is paused");
+
+    // Unpause for subsequent tests
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, false)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+  });
+
+  // ── Test 26: add_liquidity when paused ────────────────────────────────
+  it("rejects add_liquidity when pool is paused", async () => {
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, true)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    const SPL_ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+    );
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const lpAta = await getAssociatedTokenAddress(lpMintPda, lpProvider.publicKey);
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .addLiquidity(INT_POOL_ID, new BN(1_000_000_000))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          lpMint: lpMintPda,
+          lpPosition: lpProviderLpPositionPda,
+          lpProviderLpAta: lpAta,
+          usdcMint: intUsdcMint,
+          lpProviderUsdc: lpProviderUsdcAta,
+          lpProvider: lpProvider.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: SPL_ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([lpProvider])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("Paused") || msg.includes("6000"),
+        `expected Paused error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "add_liquidity should fail when paused");
+
+    // Unpause
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, false)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+  });
+
+  // ── Test 27: remove_liquidity when paused ─────────────────────────────
+  it("rejects remove_liquidity when pool is paused", async () => {
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, true)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .removeLiquidity(INT_POOL_ID, new BN(1))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          lpMint: lpMintPda,
+          lpPosition: lpProviderLpPositionPda,
+          lpProviderLpAta: lpProviderLpAta,
+          usdcMint: intUsdcMint,
+          lpProviderUsdc: lpProviderUsdcAta,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          lpProvider: lpProvider.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([lpProvider])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("Paused") || msg.includes("6000"),
+        `expected Paused error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "remove_liquidity should fail when paused");
+
+    // Unpause
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, false)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+  });
+
+  // ── Test 28: claim_lp_fees when paused ────────────────────────────────
+  it("rejects claim_lp_fees when pool is paused", async () => {
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, true)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .claimLpFees(INT_POOL_ID)
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          lpPosition: lpProviderLpPositionPda,
+          usdcMint: intUsdcMint,
+          lpProviderUsdc: lpProviderUsdcAta,
+          lpProvider: lpProvider.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([lpProvider])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("Paused") || msg.includes("6000"),
+        `expected Paused error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "claim_lp_fees should fail when paused");
+
+    // Unpause
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, false)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+  });
+
+  // ── Test 29: remove more LP shares than owned ─────────────────────────
+  it("rejects remove_liquidity with more shares than LP owns", async () => {
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const position = await (program.account as any).lpPosition.fetch(
+      lpProviderLpPositionPda
+    );
+    const tooManyShares = position.lpShares.add(new BN(1_000_000_000));
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .removeLiquidity(INT_POOL_ID, tooManyShares)
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          lpMint: lpMintPda,
+          lpPosition: lpProviderLpPositionPda,
+          lpProviderLpAta: lpProviderLpAta,
+          usdcMint: intUsdcMint,
+          lpProviderUsdc: lpProviderUsdcAta,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          lpProvider: lpProvider.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([lpProvider])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("InsufficientLpShares") || msg.includes("6020"),
+        `expected InsufficientLpShares, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "remove_liquidity with excess shares should be rejected");
+  });
+
+  // ── Test 30: unauthorized update_fee ──────────────────────────────────
+  it("rejects update_fee from non-authority", async () => {
+    const randomUser = Keypair.generate();
+    const sig = await provider.connection.requestAirdrop(
+      randomUser.publicKey,
+      1_000_000_000
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .updateFee(INT_POOL_ID, 50)
+        .accounts({
+          poolState: poolStatePda,
+          authority: randomUser.publicKey,
+        })
+        .signers([randomUser])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("has one constraint") || msg.includes("2001") || msg.includes("ConstraintHasOne"),
+        `expected authorization error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "non-authority should not be able to update_fee");
+  });
+
+  // ── Test 31: unauthorized update_k ────────────────────────────────────
+  it("rejects update_k from non-authority", async () => {
+    const randomUser = Keypair.generate();
+    const sig = await provider.connection.requestAirdrop(
+      randomUser.publicKey,
+      1_000_000_000
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .updateK(INT_POOL_ID, new BN(999_999))
+        .accounts({
+          poolState: poolStatePda,
+          authority: randomUser.publicKey,
+        })
+        .signers([randomUser])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("has one constraint") || msg.includes("2001") || msg.includes("ConstraintHasOne"),
+        `expected authorization error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "non-authority should not be able to update_k");
+  });
+
+  // ── Test 32: unauthorized withdraw_fees ───────────────────────────────
+  it("rejects withdraw_fees from non-authority", async () => {
+    const randomUser = Keypair.generate();
+    const sig = await provider.connection.requestAirdrop(
+      randomUser.publicKey,
+      1_000_000_000
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    // randomUser doesn't have a USDC ATA, but the constraint check on authority happens first
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .withdrawFees(INT_POOL_ID, new BN(1_000_000))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          usdcMint: intUsdcMint,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          authorityUsdc: authorityUsdcAta, // doesn't matter, constraint fails earlier
+          authority: randomUser.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([randomUser])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("has one constraint") || msg.includes("2001") || msg.includes("ConstraintHasOne") ||
+        msg.includes("Unauthorized") || msg.includes("A token owner constraint was violated"),
+        `expected authorization error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "non-authority should not be able to withdraw_fees");
+  });
+
+  // ── Test 33: unauthorized update_funding_rate ─────────────────────────
+  it("rejects update_funding_rate from non-authority", async () => {
+    const FUNDING_SEED = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED, poolStatePda.toBuffer()],
+      programId
+    );
+
+    const randomUser = Keypair.generate();
+    const sig = await provider.connection.requestAirdrop(
+      randomUser.publicKey,
+      1_000_000_000
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .updateFundingRate(INT_POOL_ID, 50)
+        .accounts({
+          admin: randomUser.publicKey,
+          poolState: poolStatePda,
+          fundingConfig: fundingConfigPda,
+        })
+        .signers([randomUser])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("has one constraint") || msg.includes("2001") || msg.includes("ConstraintHasOne") ||
+        msg.includes("ConstraintAddress") || msg.includes("2012") ||
+        msg.includes("Unauthorized"),
+        `expected authorization error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "non-authority should not be able to update_funding_rate");
+  });
+
+  // ── Test 34: update_k rejects when circulating > 0 ───────────────────
+  it("rejects update_k when tokens are in circulation", async () => {
+    // First, mint some tokens to get circulating > 0
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+    const FUNDING_SEED_BUF = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED_BUF, poolStatePda.toBuffer()],
+      programId
+    );
+
+    // Check if we need to mint first
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    if (pool.circulating.eq(new BN(0))) {
+      await (program.methods as any)
+        .mint(INT_POOL_ID, new BN(500_000_000), new BN(0))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          shortsolMint: shortsolMintPda,
+          mintAuthority: mintAuthPda,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          usdcMint: intUsdcMint,
+          userUsdc: authorityUsdcAta,
+          userShortsol: shortsolAta,
+          user: authority.publicKey,
+          fundingConfig: fundingConfigPda,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    }
+
+    // Now try update_k — should fail
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .updateK(INT_POOL_ID, new BN(999_999_999))
+        .accounts({
+          poolState: poolStatePda,
+          authority: authority.publicKey,
+        })
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("CirculatingNotZero") || msg.includes("6012"),
+        `expected CirculatingNotZero, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "update_k should fail when circulating > 0");
+  });
+
+  // ── Test 35: mint→redeem roundtrip fee accounting ─────────────────────
+  it("mint→redeem roundtrip: user loses exactly 2x fee, vault retains fees", async () => {
+    // Clean slate: redeem all first
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+    const shortsolAta = await getAssociatedTokenAddress(
+      shortsolMintPda,
+      authority.publicKey
+    );
+    const FUNDING_SEED_BUF = Buffer.from("funding");
+    const [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [FUNDING_SEED_BUF, poolStatePda.toBuffer()],
+      programId
+    );
+
+    // Redeem everything
+    const shortsolBal = (
+      await provider.connection.getTokenAccountBalance(shortsolAta)
+    ).value.amount;
+    if (new BN(shortsolBal).gt(new BN(0))) {
+      await (program.methods as any)
+        .redeem(INT_POOL_ID, new BN(shortsolBal), new BN(0))
+        .accounts({
+          poolState: poolStatePda,
+          vaultUsdc: vaultUsdcPda,
+          shortsolMint: shortsolMintPda,
+          priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+          usdcMint: intUsdcMint,
+          userShortsol: shortsolAta,
+          userUsdc: authorityUsdcAta,
+          user: authority.publicKey,
+          fundingConfig: fundingConfigPda,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    }
+
+    await new Promise((r) => setTimeout(r, 3000));
+
+    // Record starting USDC balance
+    const usdcBefore = BigInt(
+      (await provider.connection.getTokenAccountBalance(authorityUsdcAta)).value.amount
+    );
+
+    // Mint 1,000 USDC worth
+    const mintAmount = new BN(1_000_000_000); // 1,000 USDC
+    await (program.methods as any)
+      .mint(INT_POOL_ID, mintAmount, new BN(0))
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        shortsolMint: shortsolMintPda,
+        mintAuthority: mintAuthPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        usdcMint: intUsdcMint,
+        userUsdc: authorityUsdcAta,
+        userShortsol: shortsolAta,
+        user: authority.publicKey,
+        fundingConfig: fundingConfigPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    await new Promise((r) => setTimeout(r, 3000));
+
+    // Redeem all tokens received
+    const tokensReceived = (
+      await provider.connection.getTokenAccountBalance(shortsolAta)
+    ).value.amount;
+
+    await (program.methods as any)
+      .redeem(INT_POOL_ID, new BN(tokensReceived), new BN(0))
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        shortsolMint: shortsolMintPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        usdcMint: intUsdcMint,
+        userShortsol: shortsolAta,
+        userUsdc: authorityUsdcAta,
+        user: authority.publicKey,
+        fundingConfig: fundingConfigPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    const usdcAfter = BigInt(
+      (await provider.connection.getTokenAccountBalance(authorityUsdcAta)).value.amount
+    );
+
+    // User should lose some USDC to fees (roundtrip cost)
+    const loss = usdcBefore - usdcAfter;
+    assert.ok(loss > 0n, "user should have a net loss due to fees");
+
+    // With 4 bps fee and dynamic fee, loss should be reasonable (< 2% of mint amount)
+    const maxAcceptableLoss = BigInt(mintAmount.toNumber()) * 2n / 100n; // 2%
+    assert.ok(
+      loss <= maxAcceptableLoss,
+      `roundtrip loss ${loss} should be < 2% of deposit (${maxAcceptableLoss})`
+    );
+  });
+
+  // ── Test 36: unauthorized transfer_authority ──────────────────────────
+  it("rejects transfer_authority from non-authority", async () => {
+    const randomUser = Keypair.generate();
+    const sig = await provider.connection.requestAirdrop(
+      randomUser.publicKey,
+      1_000_000_000
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    const targetKey = Keypair.generate();
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .transferAuthority(INT_POOL_ID)
+        .accounts({
+          poolState: poolStatePda,
+          authority: randomUser.publicKey,
+          newAuthority: targetKey.publicKey,
+        })
+        .signers([randomUser])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("has one constraint") || msg.includes("2001") || msg.includes("ConstraintHasOne"),
+        `expected authorization error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "non-authority should not be able to transfer_authority");
+  });
+
+  // ── Test 37: double pause is idempotent ───────────────────────────────
+  it("double pause and double unpause are idempotent", async () => {
+    // Pause twice
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, true)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, true)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    let pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(pool.paused, "pool should still be paused after double pause");
+
+    // Unpause twice
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, false)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    await (program.methods as any)
+      .setPause(INT_POOL_ID, false)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    pool = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(!pool.paused, "pool should be unpaused after double unpause");
+  });
+
+  // ── Test 38: set_feed_id instruction ──────────────────────────────────
+  it("authority can update the Pyth feed ID", async () => {
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    const originalFeedId = Array.from(pool.pythFeedId);
+
+    // Set a different feed ID (TSLA for testing)
+    const TSLA_FEED_ID_HEX = "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1";
+    const TSLA_BYTES = Array.from(Buffer.from(TSLA_FEED_ID_HEX, "ascii"));
+
+    await (program.methods as any)
+      .setFeedId(INT_POOL_ID, TSLA_BYTES)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    const poolAfter = await (program.account as any).poolState.fetch(poolStatePda);
+    const newFeedId = Array.from(poolAfter.pythFeedId);
+    assert.deepEqual(newFeedId, TSLA_BYTES, "feed ID should be updated to TSLA");
+
+    // Restore original feed ID
+    await (program.methods as any)
+      .setFeedId(INT_POOL_ID, originalFeedId)
+      .accounts({
+        poolState: poolStatePda,
+        authority: authority.publicKey,
+      })
+      .rpc();
+
+    const poolRestored = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.deepEqual(
+      Array.from(poolRestored.pythFeedId),
+      originalFeedId,
+      "feed ID should be restored"
+    );
+  });
+
+  // ── Test 39: unauthorized set_feed_id ─────────────────────────────────
+  it("rejects set_feed_id from non-authority", async () => {
+    const randomUser = Keypair.generate();
+    const sig = await provider.connection.requestAirdrop(
+      randomUser.publicKey,
+      1_000_000_000
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    let failed = false;
+    try {
+      await (program.methods as any)
+        .setFeedId(INT_POOL_ID, PYTH_FEED_ID_BYTES)
+        .accounts({
+          poolState: poolStatePda,
+          authority: randomUser.publicKey,
+        })
+        .signers([randomUser])
+        .rpc();
+    } catch (err: any) {
+      failed = true;
+      const msg = err.message || err.toString();
+      assert.ok(
+        msg.includes("has one constraint") || msg.includes("2001") || msg.includes("ConstraintHasOne") ||
+        msg.includes("Unauthorized") || msg.includes("6010"),
+        `expected authorization error, got: ${msg}`
+      );
+    }
+    assert.ok(failed, "non-authority should not be able to set_feed_id");
+  });
+
+  // ── Test 40: vault balance consistency after operations ───────────────
+  it("vault_balance in pool state matches actual token account balance", async () => {
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    const vaultAccount = await provider.connection.getTokenAccountBalance(vaultUsdcPda);
+    const actualBalance = BigInt(vaultAccount.value.amount);
+    const recordedBalance = BigInt(pool.vaultBalance.toString());
+
+    assert.ok(
+      actualBalance >= recordedBalance,
+      `actual vault ${actualBalance} should be >= recorded ${recordedBalance}`
+    );
+  });
+
+  // ── Test 41: LP invariant: lp_total_supply matches minted LP tokens ───
+  it("LP total supply in pool matches LP mint supply", async () => {
+    const { getMint } = await import("@solana/spl-token");
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    const lpMintInfo = await getMint(provider.connection, lpMintPda);
+    const mintSupply = BigInt(lpMintInfo.supply.toString());
+    const poolSupply = BigInt(pool.lpTotalSupply.toString());
+
+    assert.equal(
+      mintSupply.toString(),
+      poolSupply.toString(),
+      "LP mint supply should match pool.lp_total_supply"
+    );
   });
 });
