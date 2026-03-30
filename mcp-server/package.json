@@ -1,12 +1,13 @@
 {
   "name": "holging-mcp-server",
-  "version": "1.0.0",
-  "description": "MCP server for Holging protocol — trading + LP operations for AI agents",
+  "version": "2.0.0",
+  "description": "MCP server for Holging protocol — full trading, LP, and analytics for AI agents",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
@@ -19,8 +20,5 @@
     "@types/bn.js": "^5.1.5",
     "@types/node": "^20.0.0",
     "typescript": "^5.9.0"
-  },
-  "overrides": {
-    "rpc-websockets": "^9.3.7"
   }
 }

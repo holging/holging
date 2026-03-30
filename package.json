@@ -1,4 +1,7 @@
 {
+  "name": "holging",
+  "description": "Holging — Tokenized Hedge Protocol on Solana",
+  "repository": "https://github.com/holging/holging",
   "license": "ISC",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",

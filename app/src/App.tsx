@@ -12,6 +12,8 @@ import { RiskDashboard } from "./components/RiskDashboard";
 import { TokenHolders } from "./components/TokenHolders";
 import { StatePage } from "./components/StatePage";
 import { FaucetButton } from "./components/FaucetButton";
+import { BurnerFunder } from "./components/BurnerFunder";
+import { McpPage } from "./components/McpPage";
 import { LpDashboard } from "./components/LpDashboard";
 import { usePool } from "./hooks/usePool";
 import { usePythPrice } from "./hooks/usePythPrice";
@@ -28,7 +30,7 @@ const ADMIN_WALLETS = (
 // Default PublicKey (all zeros) — LP not initialized
 const DEFAULT_PUBKEY = "11111111111111111111111111111111";
 
-type Tab = "mint" | "redeem" | "lp" | "holging" | "holders" | "state" | "risk";
+type Tab = "mint" | "redeem" | "lp" | "holging" | "holders" | "state" | "mcp" | "risk";
 
 function App() {
   const { connected, publicKey } = useWallet();
@@ -54,6 +56,8 @@ function App() {
         </div>
         <WalletMultiButton />
       </header>
+
+      <BurnerFunder />
 
       <main>
         {/* Pool Selector */}
@@ -115,6 +119,12 @@ function App() {
           >
             State
           </button>
+          <button
+            className={tab === "mcp" ? "active" : ""}
+            onClick={() => setTab("mcp")}
+          >
+            MCP
+          </button>
           {isAdmin && (
             <button
               className={tab === "risk" ? "active" : ""}
@@ -143,6 +153,7 @@ function App() {
         {tab === "holging" && <StrategyTerminal poolId={selectedPoolId} />}
         {tab === "holders" && <TokenHolders poolId={selectedPoolId} />}
         {tab === "state" && <StatePage poolId={selectedPoolId} />}
+        {tab === "mcp" && <McpPage />}
         {tab === "risk" && isAdmin && <RiskDashboard poolId={selectedPoolId} />}
 
         {poolError && selectedPoolId === DEFAULT_POOL_ID && (

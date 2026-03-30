@@ -1,5 +1,7 @@
 # Holging — Tokenized Inverse Exposure on Solana
 
+[![GitHub](https://img.shields.io/badge/github-holging%2Fholging-blue)](https://github.com/holging/holging)
+
 Holging lets you short SOL with a single click. Deposit USDC, receive **shortSOL** — an SPL token whose price moves inversely to SOL using a multiplicative (1/x) model with zero volatility decay, zero path dependency, and zero liquidation risk.
 
 **Live demo:** [holging.com](https://holging.com)

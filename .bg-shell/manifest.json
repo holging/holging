@@ -1,16 +1,1 @@
-[
-  {
-    "id": "d4581b62",
-    "label": "vite-dev",
-    "command": "cd $HOME/Movies/Movavi\\ Video\\ Editor/Projects/solshort/app && npm run dev",
-    "cwd": "./",
-    "ownerSessionFile": "./.gsd/sessions/--Users-user-Movies-Movavi Video Editor-Projects-solshort--/2026-03-30T06-25-18-282Z_f69a5e30-c9c6-4cd8-8fc3-5a540b20fe58.jsonl",
-    "persistAcrossSessions": false,
-    "startedAt": 1774852141518,
-    "processType": "server",
-    "group": "holging",
-    "readyPattern": null,
-    "readyPort": 5173,
-    "pid": 21135
-  }
-]
+[]

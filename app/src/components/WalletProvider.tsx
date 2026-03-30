@@ -5,12 +5,16 @@ import {
 } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
+import { BurnerWalletAdapter } from "../utils/BurnerWalletAdapter";
 import { DEVNET_RPC } from "../utils/program";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
+  const wallets = useMemo(
+    () => [new BurnerWalletAdapter(), new PhantomWalletAdapter(), new SolflareWalletAdapter()],
+    []
+  );
 
   return (
     <ConnectionProvider endpoint={DEVNET_RPC}>

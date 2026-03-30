@@ -7,11 +7,11 @@ export const HERMES_URL = "https://hermes.pyth.network";
 export const PRICE_PRECISION = new BN(1_000_000_000);
 export const BPS_DENOMINATOR = new BN(10_000);
 
-export const POOLS: Record<string, { feedId: string; name: string }> = {
-  sol:  { feedId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", name: "shortSOL" },
-  tsla: { feedId: "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1", name: "shortTSLA" },
-  spy:  { feedId: "19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5", name: "shortSPY" },
-  aapl: { feedId: "49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688", name: "shortAAPL" },
+export const POOLS: Record<string, { feedId: string; name: string; asset: string }> = {
+  sol:  { feedId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", name: "shortSOL", asset: "SOL" },
+  tsla: { feedId: "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1", name: "shortTSLA", asset: "TSLA" },
+  spy:  { feedId: "19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5", name: "shortSPY", asset: "SPY" },
+  aapl: { feedId: "49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688", name: "shortAAPL", asset: "AAPL" },
 };
 
 const POOL_SEED = Buffer.from("pool");
@@ -24,6 +24,14 @@ const LP_POSITION_SEED = Buffer.from("lp_position");
 
 export function getFeedId(poolId: string = DEFAULT_POOL_ID): string {
   return POOLS[poolId]?.feedId ?? POOLS[DEFAULT_POOL_ID].feedId;
+}
+
+export function getPoolName(poolId: string = DEFAULT_POOL_ID): string {
+  return POOLS[poolId]?.name ?? poolId;
+}
+
+export function getAssetName(poolId: string = DEFAULT_POOL_ID): string {
+  return POOLS[poolId]?.asset ?? poolId.toUpperCase();
 }
 
 export function derivePoolPda(poolId: string = DEFAULT_POOL_ID): [PublicKey, number] {
@@ -57,6 +65,8 @@ export function deriveLpPositionPda(lpProvider: PublicKey, poolId: string = DEFA
   return PublicKey.findProgramAddressSync([LP_POSITION_SEED, poolPda.toBuffer(), lpProvider.toBuffer()], PROGRAM_ID);
 }
 
+// ─── Pyth helpers ────────────────────────────────────────────────────────────
+
 export interface PythPrice {
   price: number;
   conf: number;
@@ -80,6 +90,16 @@ export async function fetchSolPrice(poolId: string = DEFAULT_POOL_ID): Promise<P
   };
 }
 
+export async function fetchPriceUpdateData(poolId: string = DEFAULT_POOL_ID): Promise<string[]> {
+  const feedId = getFeedId(poolId);
+  const resp = await fetch(
+    `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&encoding=base64`
+  );
+  if (!resp.ok) throw new Error(`Hermes API error: ${resp.status}`);
+  const data: any = await resp.json();
+  return data.binary.data;
+}
+
 export function pythPriceToUsd(p: PythPrice): number {
   return p.price * 10 ** p.expo;
 }
@@ -91,15 +111,7 @@ export function pythPriceToPrecision(p: PythPrice): bigint {
   return price / (10n ** BigInt(-exp));
 }
 
-export async function fetchPriceUpdateData(poolId: string = DEFAULT_POOL_ID): Promise<string[]> {
-  const feedId = getFeedId(poolId);
-  const resp = await fetch(
-    `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&encoding=base64`
-  );
-  if (!resp.ok) throw new Error(`Hermes API error: ${resp.status}`);
-  const data: any = await resp.json();
-  return data.binary.data;
-}
+// ─── Math helpers ────────────────────────────────────────────────────────────
 
 export function formatUsdc(lamports: BN | number): string {
   const val = typeof lamports === "number" ? lamports : lamports.toNumber();
@@ -108,4 +120,46 @@ export function formatUsdc(lamports: BN | number): string {
 
 export function calcShortsolPrice(k: BN, solPrice: BN): BN {
   return k.mul(PRICE_PRECISION).div(solPrice);
+}
+
+export function calcDynamicFee(
+  baseFee: BN,
+  vaultBalance: BN,
+  circulating: BN,
+  k: BN,
+  solPrice: BN,
+): BN {
+  if (circulating.isZero()) return baseFee;
+  const shortsolPrice = calcShortsolPrice(k, solPrice);
+  const obligations = circulating.mul(shortsolPrice).div(PRICE_PRECISION);
+  const obligationsUsdc = obligations.div(new BN(1000)); // 1e9 → 1e6
+  if (obligationsUsdc.isZero()) return baseFee;
+  const ratio = vaultBalance.mul(BPS_DENOMINATOR).div(obligationsUsdc);
+  if (ratio.gt(new BN(20_000))) return baseFee; // >200% → base fee
+  if (ratio.gt(new BN(10_000))) return baseFee.mul(new BN(2)); // 100-200% → 2x
+  return baseFee.mul(new BN(5)); // <100% → 5x
+}
+
+export function calcMintTokens(
+  usdcAmount: BN,
+  shortsolPrice: BN,
+  feeBps: BN,
+): { tokens: BN; fee: BN } {
+  const fee = usdcAmount.mul(feeBps).div(BPS_DENOMINATOR);
+  const net = usdcAmount.sub(fee);
+  const netScaled = net.mul(new BN(1000)); // 1e6 → 1e9
+  const tokens = netScaled.mul(PRICE_PRECISION).div(shortsolPrice);
+  return { tokens, fee };
+}
+
+export function calcRedeemUsdc(
+  tokenAmount: BN,
+  shortsolPrice: BN,
+  feeBps: BN,
+): { usdcOut: BN; fee: BN } {
+  const gross = tokenAmount.mul(shortsolPrice).div(PRICE_PRECISION);
+  const grossUsdc = gross.div(new BN(1000)); // 1e9 → 1e6
+  const fee = grossUsdc.mul(feeBps).div(BPS_DENOMINATOR);
+  const usdcOut = grossUsdc.sub(fee);
+  return { usdcOut, fee };
 }

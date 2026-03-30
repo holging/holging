@@ -22,3 +22,9 @@ id.json
 .agents/
 app/.omc/
 skills-lock.json
+.bg-shell/
+.artifacts/
+.gsd/
+
+# MCP config (contains local paths)
+.mcp.json
