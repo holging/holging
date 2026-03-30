@@ -123,7 +123,7 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint, poolId 
 
   // Pending fees estimate
   // pending = shares * (feePerShareAccumulated - feeDebtPerShare) / PRECISION
-  const FEE_PRECISION = new BN(1_000_000_000);
+  const FEE_PRECISION = new BN("1000000000000"); // 1e12 — must match SHARE_PRECISION on-chain
   const pendingFeesBn: BN = (() => {
     if (!lpPosition || !pool?.feePerShareAccumulated) return new BN(0);
     try {
