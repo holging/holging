@@ -3,6 +3,13 @@ import { POOLS } from "../config/pools";
 
 const TOOLS = [
   {
+    name: "claim_usdc",
+    category: "faucet",
+    desc: "Claim 5,000 free devnet USDC — run this first!",
+    params: "—",
+    example: "{}",
+  },
+  {
     name: "get_pool_state",
     category: "read",
     desc: "Pool state: vault, coverage, prices, fees, LP stats",
@@ -82,6 +89,7 @@ const TOOLS = [
 ];
 
 const CATEGORIES: Record<string, { label: string; color: string; icon: string }> = {
+  faucet: { label: "FAUCET", color: "#ff79c6", icon: "🚰" },
   read: { label: "READ", color: "#00d4aa", icon: "📖" },
   simulate: { label: "SIMULATE", color: "#ffb347", icon: "🧪" },
   trade: { label: "TRADE", color: "#ff6b6b", icon: "⚡" },
@@ -194,7 +202,7 @@ export function McpPage() {
       {/* Hero stats */}
       <div className="mcp-hero">
         <div className="mcp-stat">
-          <span className="mcp-stat-value">11</span>
+          <span className="mcp-stat-value">12</span>
           <span className="mcp-stat-label">Tools</span>
         </div>
         <div className="mcp-stat">
@@ -312,7 +320,7 @@ export function McpPage() {
       {/* ─── TOOLS SECTION ──────────────────────────────────── */}
       {section === "tools" && (
         <div className="mcp-section">
-          <h3 className="mcp-section-title">All 11 Tools</h3>
+          <h3 className="mcp-section-title">All 12 Tools</h3>
           <div className="mcp-filters">
             <button
               className={`mcp-filter-btn ${filter === null ? "active" : ""}`}

@@ -6,6 +6,7 @@ import {
   getPoolState, getSolPrice, getPosition, getAllPrices,
   mint, redeem, simulateMint, simulateRedeem,
   addLiquidity, removeLiquidity, claimLpFees,
+  claimUsdc,
 } from "./tools.js";
 import { POOLS } from "./utils.js";
 
@@ -175,6 +176,21 @@ server.tool(
   { pool_id: poolIdParam },
   async ({ pool_id }) => ({
     content: [{ type: "text", text: await claimLpFees(pool_id) }],
+  })
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FAUCET
+// ═══════════════════════════════════════════════════════════════════════════════
+
+server.tool(
+  "claim_usdc",
+  `Claim 5,000 free devnet USDC from the on-chain faucet.
+  Rate limited: 1 claim per 24 hours per wallet.
+  Use this first before minting — you need USDC to trade.`,
+  {},
+  async () => ({
+    content: [{ type: "text", text: await claimUsdc() }],
   })
 );
 

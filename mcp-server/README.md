@@ -1,6 +1,6 @@
 # Holging MCP Server — AI Agent Trading on Solana
 
-> **11 tools. 4 pools. One command.**
+> **12 tools. 4 pools. One command.**
 > Let your AI agent trade inverse tokens, provide liquidity, and run the Holging strategy on Solana.
 
 ```
@@ -51,7 +51,7 @@ solana airdrop 2 ~/holging-agent-wallet.json
 
 ### 4. Start trading
 
-Tell your AI: *"Check all Holging prices and simulate minting 100 USDC of shortSOL"*
+Tell your AI: *"Claim devnet USDC from the faucet, then mint 100 USDC of shortSOL"*
 
 ---
 
@@ -66,7 +66,13 @@ Tell your AI: *"Check all Holging prices and simulate minting 100 USDC of shortS
 
 ---
 
-## All 11 Tools
+## All 12 Tools
+
+### 🚰 Faucet (get started)
+
+| Tool | What It Does |
+|------|-------------|
+| `claim_usdc` | Claim 5,000 free devnet USDC (1x per 24h) |
 
 ### 📖 Read (no transaction, free)
 
@@ -109,13 +115,14 @@ The core strategy. 50% SOL + 50% shortSOL. Math guarantees P&L ≥ 0 for any pri
 
 ```
 Agent workflow:
-1. get_all_prices          → check SOL price
-2. get_position            → check current SOL and shortSOL balances
-3. Calculate ratio         → if shortSOL value / total < 40% or > 60%
-4. simulate_mint or simulate_redeem → preview rebalance trade
-5. mint or redeem          → execute rebalance
-6. get_position            → verify new ratio ≈ 50/50
-7. Repeat every 1-24 hours
+1. claim_usdc             → get 5,000 free devnet USDC
+2. get_all_prices          → check SOL price
+3. get_position            → check current SOL and shortSOL balances
+4. Calculate ratio         → if shortSOL value / total < 40% or > 60%
+5. simulate_mint or simulate_redeem → preview rebalance trade
+6. mint or redeem          → execute rebalance
+7. get_position            → verify new ratio ≈ 50/50
+8. Repeat every 1-24 hours
 ```
 
 **P&L table (per $10,000 portfolio):**
@@ -175,6 +182,9 @@ Agent workflow:
 Human: Scan the market and enter a holging position with $500
 
 Agent:
+→ claim_usdc
+  ✅ Claimed 5,000 USDC | Balance: 5,000.00 USDC
+
 → get_all_prices
   SOL: $84.37 | shortSOL: $85.31 | coverage: 6,433%
   TSLA: $178.50 | shortTSLA: $40.34
@@ -263,4 +273,4 @@ Mint/redeem: any amount > 0 USDC. LP: minimum $100 USDC.
 
 ---
 
-*Built for AI agents. Powered by Solana. Proven by math.*
+*Built for AI agents. 12 tools. Powered by Solana. Proven by math.*

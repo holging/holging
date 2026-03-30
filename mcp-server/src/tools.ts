@@ -584,3 +584,100 @@ export async function claimLpFees(
     explorer: `https://explorer.solana.com/tx/${sig}?cluster=devnet`,
   }, null, 2);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FAUCET — Claim devnet USDC
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const FAUCET_PROGRAM_ID = new PublicKey("BqisdDoAVUH8KH2uAspUfCYSiiAwdLvuEepk1R8A7hGn");
+
+export async function claimUsdc(): Promise<string> {
+  const conn = getConnection();
+  const wallet = getWallet();
+  const usdcMint = getUsdcMint();
+
+  const [faucetState] = PublicKey.findProgramAddressSync(
+    [Buffer.from("faucet")],
+    FAUCET_PROGRAM_ID,
+  );
+  const [vault] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault")],
+    FAUCET_PROGRAM_ID,
+  );
+  const [claimRecord] = PublicKey.findProgramAddressSync(
+    [Buffer.from("claim"), wallet.publicKey.toBuffer()],
+    FAUCET_PROGRAM_ID,
+  );
+
+  const userAta = await getAssociatedTokenAddress(usdcMint, wallet.publicKey);
+
+  // Build transaction
+  const tx = new Transaction();
+
+  // Create ATA if needed
+  const ataInfo = await conn.getAccountInfo(userAta);
+  if (!ataInfo) {
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        wallet.publicKey, userAta, wallet.publicKey, usdcMint,
+      ),
+    );
+  }
+
+  // Load faucet IDL and build claim instruction
+  const fs = await import("fs");
+  const path = await import("path");
+  const { fileURLToPath } = await import("url");
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const faucetIdl = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, "../idl/faucet.json"), "utf-8"),
+  );
+
+  const anchor = await import("@coral-xyz/anchor");
+  const provider = new anchor.AnchorProvider(conn, wallet, { commitment: "confirmed" });
+  const faucetProgram = new anchor.Program(faucetIdl, provider);
+
+  const claimIx = await (faucetProgram.methods as any)
+    .claim()
+    .accounts({
+      user: wallet.publicKey,
+      faucetState,
+      vault,
+      claimRecord,
+      userAta,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+
+  tx.add(claimIx);
+
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = wallet.publicKey;
+
+  const signed = await wallet.signTransaction(tx);
+  const sig = await conn.sendRawTransaction(signed.serialize());
+  await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+
+  // Check new balance
+  try {
+    const ata = await getAccount(conn, userAta);
+    const balance = Number(ata.amount) / 1e6;
+    return JSON.stringify({
+      success: true,
+      claimed: "5,000 USDC",
+      newBalance: `${balance.toFixed(2)} USDC`,
+      tx: sig,
+      explorer: `https://solscan.io/tx/${sig}?cluster=devnet`,
+      note: "Rate limited: 1 claim per 24 hours",
+    }, null, 2);
+  } catch {
+    return JSON.stringify({
+      success: true,
+      claimed: "5,000 USDC",
+      tx: sig,
+      explorer: `https://solscan.io/tx/${sig}?cluster=devnet`,
+    }, null, 2);
+  }
+}
