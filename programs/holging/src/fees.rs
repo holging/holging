@@ -42,12 +42,15 @@ pub fn calc_dynamic_fee(
     sol_price: u64,
 ) -> Result<u16> {
     if circulating == 0 || sol_price == 0 {
-        return Ok(base_fee_bps);
+        // No tokens in circulation — apply minimum tier (×5)
+        let fee = (base_fee_bps as u64) * 5;
+        return Ok(fee.min(100) as u16);
     }
 
     let obligations = calc_obligations(circulating, k, sol_price)?;
     if obligations == 0 {
-        return Ok(base_fee_bps);
+        let fee = (base_fee_bps as u64) * 5;
+        return Ok(fee.min(100) as u16);
     }
 
     let ratio_bps = (vault_balance as u128)

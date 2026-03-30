@@ -129,11 +129,16 @@ export function calcDynamicFee(
   k: BN,
   solPrice: BN,
 ): BN {
-  if (circulating.isZero() || solPrice.isZero()) return baseFee;
+  if (circulating.isZero() || solPrice.isZero()) {
+    // No tokens in circulation — apply minimum tier (×5)
+    return new BN(Math.max(Math.min(baseFee.toNumber() * 5, 100), 1));
+  }
   const shortsolPrice = calcShortsolPrice(k, solPrice);
   const obligations = circulating.mul(shortsolPrice).div(PRICE_PRECISION);
   const obligationsUsdc = obligations.div(new BN(1000)); // 1e9 → 1e6
-  if (obligationsUsdc.isZero()) return baseFee;
+  if (obligationsUsdc.isZero()) {
+    return new BN(Math.max(Math.min(baseFee.toNumber() * 5, 100), 1));
+  }
   const ratioBps = vaultBalance.mul(BPS_DENOMINATOR).div(obligationsUsdc);
   const ratio = ratioBps.toNumber();
 

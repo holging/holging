@@ -14,13 +14,18 @@ export function calcDynamicFee(
   k: BN,
   solPrice: BN
 ): BN {
-  if (circulating.isZero() || solPrice.isZero()) return baseFee;
+  if (circulating.isZero() || solPrice.isZero()) {
+    // No tokens in circulation — apply minimum tier (×5)
+    return new BN(Math.max(Math.min(baseFee.toNumber() * 5, 100), 1));
+  }
   const shortsolPrice = k.mul(PRICE_PRECISION).div(solPrice);
   const obligations = circulating
     .mul(shortsolPrice)
     .div(PRICE_PRECISION)
     .div(DECIMAL_SCALING);
-  if (obligations.isZero()) return baseFee;
+  if (obligations.isZero()) {
+    return new BN(Math.max(Math.min(baseFee.toNumber() * 5, 100), 1));
+  }
   const ratioBps = vaultBalance.mul(BPS_DENOMINATOR).div(obligations);
   const ratio = ratioBps.toNumber();
   let fee: number;

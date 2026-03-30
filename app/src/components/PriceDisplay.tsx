@@ -2,7 +2,7 @@ import { usePythPrice } from "../hooks/usePythPrice";
 import { usePool } from "../hooks/usePool";
 import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import BN from "bn.js";
-import { calcShortsolPrice, formatPrice } from "../utils/math";
+import { calcShortsolPrice, calcDynamicFee, formatPrice } from "../utils/math";
 
 export function PriceDisplay({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
   const { solPriceUsd, loading: priceLoading, error: priceError } = usePythPrice(POOLS[poolId]?.feedId);
@@ -16,6 +16,21 @@ export function PriceDisplay({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) 
           return formatPrice(ssPrice);
         })()
       : null;
+
+  const dynamicFeeBps =
+    pool && solPriceUsd
+      ? (() => {
+          const solPriceBn = new BN(Math.round(solPriceUsd * 1e9));
+          const fee = calcDynamicFee(
+            new BN(pool.feeBps),
+            new BN(pool.vaultBalance),
+            new BN(pool.circulating),
+            pool.k,
+            solPriceBn
+          );
+          return fee.toNumber();
+        })()
+      : pool?.feeBps ?? 0;
 
   return (
     <div className="price-display">
@@ -38,7 +53,7 @@ export function PriceDisplay({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) 
       {pool && (
         <div className="price-card">
           <span className="price-label">Fee</span>
-          <span className="price-value">{pool.feeBps / 100}%</span>
+          <span className="price-value">{(dynamicFeeBps / 100).toFixed(2)}%</span>
         </div>
       )}
     </div>
