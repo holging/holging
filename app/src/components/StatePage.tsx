@@ -88,19 +88,20 @@ export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
       ).toNumber()
     : pool.feeBps;
 
-  // Oracle age
+  // Oracle age — devnet staleness is 259200s (3 days) for stock feeds
+  const MAX_STALENESS_DEVNET = 259200;
   const oracleAge = pool.lastOracleTimestamp
     ? Math.floor(Date.now() / 1000) - Number(pool.lastOracleTimestamp)
     : null;
-  const oracleStatus = oracleAge !== null && oracleAge < 120 ? "Fresh" : "Stale";
-  const oracleClass = oracleAge !== null && oracleAge < 60 ? "vault-green" : oracleAge !== null && oracleAge < 120 ? "vault-yellow" : "vault-red";
+  const oracleStatus = oracleAge !== null && oracleAge < MAX_STALENESS_DEVNET ? "Fresh" : "Stale";
+  const oracleClass = oracleAge !== null && oracleAge < 300 ? "vault-green" : oracleAge !== null && oracleAge < MAX_STALENESS_DEVNET ? "vault-yellow" : "vault-red";
 
   // LP APY (realistic)
   const fundingApyBase = (1 - Math.pow(0.999, 365)) * 100;
   const fundingApy = fundingApyBase * Math.min(utilization / 100, 1);
 
   // Fee tiers explanation
-  const feeLevel = coverageRatio > 200 ? "Low (healthy)" : coverageRatio > 150 ? "Normal" : coverageRatio > 100 ? "Elevated" : "Critical";
+  const feeLevel = dynamicFeeBps <= pool.feeBps / 2 ? "Discounted (vault healthy)" : coverageRatio > 200 ? "Base" : coverageRatio > 150 ? "Elevated" : coverageRatio > 100 ? "High" : "Critical";
 
   // Addresses
   const [poolPda] = PublicKey.findProgramAddressSync(
@@ -109,6 +110,15 @@ export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
   );
   const [shortsolMintPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("shortsol_mint"), Buffer.from(poolId)],
+    PROGRAM_ID
+  );
+  const USDC_MINT = new PublicKey("CAMk3KqYMKEtoQnsDyJMmdKUfvh5wa4uYSJvUTDheeGn");
+  const [vaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), USDC_MINT.toBuffer(), Buffer.from(poolId)],
+    PROGRAM_ID
+  );
+  const [lpMintPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("lp_mint"), poolPda.toBuffer()],
     PROGRAM_ID
   );
 
@@ -199,7 +209,7 @@ export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
         <div className="risk-row"><span>Live Price</span><span>{solPriceUsd ? fmtUsdc(solPriceUsd) : "—"}</span></div>
         <div className="risk-row"><span>Oracle Age</span><span className={oracleClass}>{oracleAge !== null ? fmtAge(oracleAge) : "—"}</span></div>
         <div className="risk-row"><span>Status</span><span className={oracleClass}>{oracleStatus}</span></div>
-        <div className="risk-row"><span>Max Staleness</span><span>120s (devnet) / 30s (mainnet)</span></div>
+        <div className="risk-row"><span>Max Staleness</span><span>259200s (devnet) / 30s (mainnet)</span></div>
         <div className="risk-row"><span>Max Deviation</span><span>15%</span></div>
       </div>
 
@@ -241,6 +251,20 @@ export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
             {shortenAddress(shortsolMintPda.toBase58())}
           </a>
         </div>
+        <div className="risk-row">
+          <span>USDC Vault</span>
+          <a href={explorerBase + vaultPda.toBase58() + cluster} target="_blank" rel="noopener" style={{ color: "var(--accent)", textDecoration: "none" }}>
+            {shortenAddress(vaultPda.toBase58())}
+          </a>
+        </div>
+        {pool.lpMint && pool.lpMint !== "11111111111111111111111111111111" && (
+          <div className="risk-row">
+            <span>LP Mint</span>
+            <a href={explorerBase + lpMintPda.toBase58() + cluster} target="_blank" rel="noopener" style={{ color: "var(--accent)", textDecoration: "none" }}>
+              {shortenAddress(lpMintPda.toBase58())}
+            </a>
+          </div>
+        )}
         <div className="risk-row">
           <span>Authority</span>
           <a href={explorerBase + pool.authority + cluster} target="_blank" rel="noopener" style={{ color: "var(--accent)", textDecoration: "none" }}>
