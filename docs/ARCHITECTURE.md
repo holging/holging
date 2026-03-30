@@ -1,967 +1,711 @@
-# Holging — Математика и Архитектура
+# Holging — Mathematics & Architecture
 
 ## Tokenized Hedge Protocol on Solana
 
-> Версия 0.3 · Февраль 2026 · Solafon Ecosystem
+> Version 1.0 · March 2026 · Program `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
 
 ---
 
-## Содержание
+## Contents
 
-1. Математические основы
-2. Модель ценообразования shortSOL
-3. Holging: портфельная выпуклость
-4. Экономика Minting Engine
-5. Ликвидность: инкапсулированная модель
-6. Архитектура Solana-программы
-7. Oracle-интеграция (Pyth Network)
-8. Безопасность и edge cases
-9. Сравнение с EVM-реализацией
-10. Roadmap к production
+1. Mathematical Foundations
+2. shortSOL Pricing Model
+3. Holging: Portfolio Convexity
+4. Minting Engine Economics
+5. Dynamic Fee System
+6. Funding Rate (k-Decay)
+7. LP System
+8. Liquidity: Encapsulated Model
+9. Solana Program Architecture
+10. Oracle Integration (Pyth Network)
+11. Security & Edge Cases
+12. Protocol Constants
 
 ---
 
-## 1. Математические основы
+## 1. Mathematical Foundations
 
-### 1.1 Реципрокная функция как финансовый инструмент
+### 1.1 Reciprocal Function as a Financial Instrument
 
-Центральная идея Holging — использование **реципрокной (обратной) функции** для создания хедж-инструмента.
+The core idea of Holging is using the **reciprocal (inverse) function** to create a hedge instrument.
 
-Пусть P(t) — цена базового актива (SOL) в момент t. Тогда цена shortSOL определяется как:
+Let P(t) be the price of the base asset (SOL) at time t. Then the shortSOL price is:
 
 ```
 shortSOL(t) = k / P(t)
 ```
 
-где k — **константа нормализации**, устанавливаемая при инициализации контракта.
+where k is a **normalizing constant** set at pool initialization.
 
-**Выбор k:** при деплое программы k = P(0)², что даёт shortSOL(0) = P(0). Это означает, что в момент запуска цена shortSOL равна цене SOL. Это упрощает UX и делает соотношение интуитивным.
+**Choice of k:** at deployment k = P(0)², so shortSOL(0) = P(0). The shortSOL price equals SOL price at launch, making the ratio intuitive for users.
 
-Пример: если SOL = $170 при запуске, то k = 170² = 28900, и shortSOL = 28900 / 170 = $170.
+Example: if SOL = $170 at launch, then k = 170² = 28,900, and shortSOL = 28,900 / 170 = $170.
 
-### 1.2 Свойства функции 1/x
+### 1.2 Properties of 1/x
 
-Функция f(x) = 1/x на интервале (0, +∞) обладает ключевыми свойствами:
-
-```
-f'(x) = -1/x²        < 0  (убывающая — при росте SOL shortSOL падает)
-f''(x) = 2/x³         > 0  (выпуклая — ускорение P&L при движении)
-```
-
-**Выпуклость** (f'' > 0) — фундаментальное свойство. Именно оно создаёт положительную гамму и отличает Holging от линейных inverse-инструментов.
-
-Для сравнения, линейный inverse-токен: g(x) = 2P₀ - x:
+The function f(x) = 1/x on (0, +∞):
 
 ```
-g'(x) = -1             (линейная)
-g''(x) = 0              (нет выпуклости, нет гаммы)
+f'(x)  = -1/x²   < 0   (decreasing — SOL up → shortSOL down)
+f''(x) =  2/x³   > 0   (convex — P&L accelerates with movement)
 ```
 
-### 1.3 Мультипликативная vs аддитивная модель
+**Convexity** (f'' > 0) is the fundamental property. It creates positive gamma and distinguishes Holging from linear inverse instruments.
 
-**Аддитивная модель (классические inverse tokens):**
+A linear inverse token g(x) = 2P₀ - x has g''(x) = 0 — no convexity, no gamma.
 
-```
-Return(shortSOL) = -Return(SOL)    за период
-```
+### 1.3 Multiplicative vs Additive Model
 
-Проблема: при последовательности +10%, -10% доходность не нулевая, а отрицательная. Это **volatility decay**:
+**Additive model (classic inverse tokens):**
 
 ```
-(1 + 0.10)(1 - 0.10) = 0.99 → потеря 1%
+Return(shortSOL) = -Return(SOL)   per period
 ```
 
-Для inverse: (1 - 0.10)(1 + 0.10) = 0.99 → тоже потеря 1%. Обе стороны теряют.
+Problem: sequence +10%, -10% doesn't net zero — **volatility decay**:
 
-**Мультипликативная модель (Holging):**
+```
+(1 + 0.10)(1 - 0.10) = 0.99 → 1% loss both sides
+```
+
+**Multiplicative model (Holging):**
 
 ```
 shortSOL(t) = k / P(t)
 ```
 
-Нет «дневной доходности». Цена shortSOL в любой момент точно определяется текущей ценой SOL. Нет path dependency, нет volatility decay, нет необходимости в ребалансировке.
-
-```
-Если SOL: $100 → $110 → $99 → $105
-
-Inverse token (additive):
-  Day 1: -10%, Day 2: +10%, Day 3: -5.45%
-  Compound: (0.90)(1.10)(0.9455) = 0.9359 → -6.4%
-  Реальное изменение SOL: +5% → inverse «должен» быть -5%, но -6.4% из-за decay
-
-shortSOL (multiplicative):
-  Начало: k/100
-  Конец: k/105
-  Реальная доходность: (k/105)/(k/100) - 1 = -4.76%
-  Точно -1 × ln-return SOL. Без decay.
-```
+No "daily return". shortSOL price at any moment is exactly determined by current SOL price. No path dependency, no volatility decay, no rebalancing required.
 
 ---
 
-## 2. Модель ценообразования shortSOL
+## 2. shortSOL Pricing Model
 
-### 2.1 Формула цены
-
-```
-Price_shortSOL = k / Price_SOL_oracle
-```
-
-Где:
-- k — константа, зафиксированная при initialize()
-- Price_SOL_oracle — текущая цена SOL/USD из Pyth Network
-
-### 2.2 Цена с учётом комиссии
-
-При минтинге (покупке) пользователь платит ask-цену:
+### 2.1 Price Formula
 
 ```
-Ask = (k / P_oracle) × (1 + fee)
+Price_shortSOL = k × PRICE_PRECISION / Price_SOL_oracle
 ```
 
-При redemption (продаже) пользователь получает bid-цену:
+Where:
+- k — constant, stored as u128 scaled by PRICE_PRECISION (1e9)
+- Price_SOL_oracle — current SOL/USD from Pyth Network (scaled 1e9)
+
+### 2.2 Pricing with Dynamic Fees
+
+On mint (ask price):
 
 ```
-Bid = (k / P_oracle) × (1 - fee)
+fee = usdc_amount × dynamic_fee_bps / 10,000
+effective_usdc = usdc_amount − fee
+tokens_out = effective_usdc × PRICE_PRECISION / shortSOL_price
 ```
 
-Текущий fee = 0.04% = 0.0004. Эффективный спред:
+On redeem (bid price):
 
 ```
-Spread = Ask - Bid = (k / P) × 2 × fee = 0.08% от цены shortSOL
+gross_usdc = shortsol_amount × shortSOL_price / PRICE_PRECISION
+fee = gross_usdc × dynamic_fee_bps / 10,000
+net_usdc = gross_usdc − fee
 ```
 
-### 2.3 Значение k и его влияние
-
-k не влияет на доходность стратегии — это масштабирующий коэффициент. Два контракта с разными k дают одинаковый процентный P&L при одинаковом движении SOL.
-
-Доказательство:
+At healthy vault (>200% coverage): dynamic fee = 20 bps per side (0.20%).
 
 ```
-Return = shortSOL(t₁) / shortSOL(t₀) - 1
-       = (k/P₁) / (k/P₀) - 1
-       = P₀/P₁ - 1
+Effective spread = 2 × 20 bps = 40 bps = 0.40%
 ```
 
-k сокращается. Return зависит только от отношения цен P₀/P₁.
+### 2.3 k Invariance
 
-Выбор k = P₀² сделан для UX: shortSOL(0) = P₀ = цена SOL при запуске.
+k does not affect strategy returns — it is a scaling coefficient. Two pools with different k values produce identical percentage P&L for the same SOL movement.
+
+Proof:
+
+```
+Return = shortSOL(t₁) / shortSOL(t₀) − 1
+       = (k/P₁) / (k/P₀) − 1
+       = P₀/P₁ − 1
+```
+
+k cancels. Return depends only on the price ratio P₀/P₁.
 
 ---
 
-## 3. Holging: портфельная выпуклость
+## 3. Holging: Portfolio Convexity
 
-### 3.1 Определение Holging-портфеля
+### 3.1 Holging Portfolio Definition
 
-Holging (Hold + Hedge) — портфель из равных долей базового актива и inverse-токена:
+Holging (Hold + Hedge) — equal-weight portfolio of base asset and inverse token:
 
 ```
 V_holging = 0.5 × SOL + 0.5 × shortSOL
 ```
 
-Нормируем к начальной стоимости. Пусть x = P(t)/P(0) — мультипликатор цены SOL.
+Let x = P(t)/P(0) be the SOL price multiplier:
 
 ```
-V_SOL_part = 0.5 × x
-V_shortSOL_part = 0.5 × (1/x)
 V_total = 0.5 × (x + 1/x)
 ```
 
-### 3.2 Неравенство AM-GM
+### 3.2 AM-GM Inequality
 
-По неравенству между средним арифметическим и средним геометрическим:
+By the AM-GM inequality:
 
 ```
 (x + 1/x) / 2  ≥  √(x × 1/x)  =  1
 ```
 
-Равенство достигается тогда и только тогда, когда x = 1/x, то есть x = 1 (цена не изменилась).
+Equality holds iff x = 1 (price unchanged).
 
-**Следствие: V_holging ≥ 1 при любом x > 0. Портфель никогда не уходит в минус (до учёта комиссий).**
+**Corollary: V_holging ≥ 1 for all x > 0. The portfolio never loses value (pre-fees).**
 
-### 3.3 P&L holging-портфеля
-
-```
-P&L(x) = (x + 1/x)/2 - 1
-```
-
-Таблица значений:
+### 3.3 P&L Table
 
 ```
   x (SOL mult.)  |  Holging P&L  |  HODL P&L  |  shortSOL P&L
   ─────────────────────────────────────────────────────────────
-  0.10 (-90%)    |  +405.0%      |  -90.0%    |  +900.0%
-  0.25 (-75%)    |  +56.3%       |  -75.0%    |  +300.0%
-  0.50 (-50%)    |  +25.0%       |  -50.0%    |  +100.0%
-  0.75 (-25%)    |  +4.2%        |  -25.0%    |  +33.3%
-  0.90 (-10%)    |  +0.6%        |  -10.0%    |  +11.1%
+  0.10 (−90%)    |  +405.0%      |  −90.0%    |  +900.0%
+  0.25 (−75%)    |  +56.3%       |  −75.0%    |  +300.0%
+  0.50 (−50%)    |  +25.0%       |  −50.0%    |  +100.0%
+  0.75 (−25%)    |  +4.2%        |  −25.0%    |  +33.3%
+  0.90 (−10%)    |  +0.6%        |  −10.0%    |  +11.1%
   1.00 (0%)      |  0.0%         |  0.0%      |  0.0%
-  1.10 (+10%)    |  +0.5%        |  +10.0%    |  -9.1%
-  1.25 (+25%)    |  +2.5%        |  +25.0%    |  -20.0%
-  1.50 (+50%)    |  +8.3%        |  +50.0%    |  -33.3%
-  2.00 (+100%)   |  +25.0%       |  +100.0%   |  -50.0%
-  3.00 (+200%)   |  +66.7%       |  +200.0%   |  -66.7%
+  1.10 (+10%)    |  +0.5%        |  +10.0%    |  −9.1%
+  1.25 (+25%)    |  +2.5%        |  +25.0%    |  −20.0%
+  1.50 (+50%)    |  +8.3%        |  +50.0%    |  −33.3%
+  2.00 (+100%)   |  +25.0%       |  +100.0%   |  −50.0%
+  3.00 (+200%)   |  +66.7%       |  +200.0%   |  −66.7%
 ```
 
-### 3.4 Гамма портфеля
-
-Гамма — вторая производная стоимости портфеля по цене:
+### 3.4 Real P&L (with fees)
 
 ```
-V(P) = 0.5 × P/P₀ + 0.5 × P₀/P
-
-dV/dP = 0.5/P₀ - 0.5 × P₀/P²
-
-d²V/dP² = P₀/P³  > 0   для всех P > 0
+Real P&L = (x−1)²/(2x) − roundtrip_fee
 ```
 
-**Гамма строго положительна при любой цене.** Это означает:
+With 0.40% roundtrip (healthy vault): break-even at SOL ±9%.
 
-1. При росте SOL — дельта портфеля растёт (больше экспозиции на рост)
-2. При падении SOL — дельта портфеля падает (меньше экспозиции на падение)
-3. Портфель «автоматически» увеличивает экспозицию в выигрышном направлении
-
-### 3.5 Связь с опционными стратегиями
-
-Holging-портфель эквивалентен **бессрочному straddle**:
+### 3.5 Gamma
 
 ```
-Long Straddle = Long Call + Long Put (на одном страйке)
+d²V/dP² = P₀/P³ > 0   for all P > 0
 ```
 
-Straddle тоже имеет положительную гамму и зарабатывает при движении в любом направлении. Но у straddle есть:
-- Экспирация (Holging — бессрочный)
-- Theta decay (Holging — без theta)
-- Выбор страйка (Holging — «страйк» = текущая цена, скользящий)
+Strictly positive gamma at any price — the portfolio auto-increases exposure in the profitable direction.
 
-Цена этого «бессрочного straddle» = комиссии Minting Engine (аналог premium).
+### 3.6 Equivalence to Perpetual Straddle
 
-### 3.6 Сравнение с LP-позицией (Uniswap V2)
+Holging ≈ perpetual straddle (long call + long put), but:
+- No expiration (perpetual)
+- No theta decay
+- No strike selection (floating at current price)
+- Cost = trading fees (analog of premium)
 
-LP в constant-product AMM (x × y = k) имеет стоимость:
-
-```
-V_LP(x) = 2√x / (1 + x)
-```
-
-Её вторая производная отрицательна — **отрицательная гамма** = impermanent loss.
-
-Holging — **зеркальное отражение** LP:
+### 3.7 Mirror of LP Position (Uniswap V2)
 
 ```
-V_holging(x) = (x + 1/x) / 2      ← выпуклая (гамма+)
-V_LP(x) = 2√x / (1 + x)           ← вогнутая (гамма-)
+V_holging(x) = (x + 1/x) / 2     ← convex (gamma+)
+V_LP(x)      = 2√x / (1 + x)     ← concave (gamma−)
 ```
 
-Их сумма:
-
-```
-V_holging + V_LP ≈ 1 + small correction
-```
-
-Holging «собирает» ту самую стоимость, которую LP «теряет» как impermanent loss.
+Holging "collects" the value that LP "loses" as impermanent loss.
 
 ---
 
-## 4. Экономика Minting Engine
+## 4. Minting Engine Economics
 
-### 4.1 Модель потоков
+### 4.1 Flow Model
 
 ```
-MINT:   User → USDC → LiquidityVault
-                    ← shortSOL ← MintingEngine
+MINT:   User → USDC → Vault   (full amount, fee stays in vault)
+                    ← shortSOL ← Mint (effective amount after fee)
 
 REDEEM: User → shortSOL → Burn
-                        ← USDC ← LiquidityVault
+                        ← USDC ← Vault (gross − fee)
 ```
 
-### 4.2 Баланс пула
+### 4.2 Pool Balance
 
-Пусть в момент t:
-- N(t) = количество shortSOL в обращении
-- R(t) = резервы USDC в LiquidityVault
-- P(t) = цена SOL
+At time t:
+- N(t) = circulating shortSOL supply
+- R(t) = USDC in vault
+- P(t) = SOL price
 
-Обязательства пула = N(t) × shortSOL_price(t) = N(t) × k/P(t)
+Obligations = N(t) × k / P(t)
 
-При минтинге n токенов по цене k/P с fee:
+### 4.3 Solvency Invariant
 
-```
-R += n × (k/P) × (1 + fee)     // пользователь заплатил больше
-N += n
-```
+With a single mint+redeem cycle, fees alone don't cover arbitrary price movements. Solvency is maintained by:
 
-При redemption n токенов:
-
-```
-R -= n × (k/P) × (1 - fee)     // пользователь получил меньше
-N -= n
-```
-
-### 4.3 Инвариант платёжеспособности
-
-**Утверждение:** если все shortSOL были зачеканены через MintingEngine (нет внешней эмиссии), то R(t) ≥ N(t) × k/P(t) при любом P(t).
-
-Доказательство (упрощённое, для одного mint + изменение цены + redeem):
-
-```
-1. Mint n токенов при цене P₀:
-   R = n × k/P₀ × (1 + fee)
-   N = n
-
-2. Цена меняется P₀ → P₁:
-   Обязательства = n × k/P₁
-   Резервы = n × k/P₀ × (1 + fee)   (не изменились)
-
-3. Ratio = R / обязательства = (P₁/P₀) × (1 + fee)
-
-   Если P₁ > P₀ (SOL вырос, shortSOL подешевел):
-     Ratio > 1 + fee > 1 ✓  (пул профицитен)
-
-   Если P₁ < P₀ (SOL упал, shortSOL подорожал):
-     Ratio = (P₁/P₀) × (1 + fee)
-     Ratio < 1 когда P₁/P₀ < 1/(1 + fee) ≈ 0.9996
-
-     При fee = 0.04%: пул дефицитен если SOL упал более чем на 0.04% с момента mint.
-```
-
-**Это означает:** одна комиссия НЕ покрывает произвольное движение цены. Покрытие обеспечивается **совокупностью mint/redeem операций при разных ценах** и **буфером из накопленных комиссий**.
-
-### 4.4 Накопление буфера
-
-Каждая операция (mint или redeem) вносит fee в буфер:
-
-```
-Buffer += amount × shortSOL_price × fee
-```
-
-При N операций за период с средним объёмом A и средней ценой shortSOL S:
-
-```
-Buffer = N × A × S × fee × 2    (mint + redeem)
-```
-
-При ежедневном объёме $1M и fee 0.04%:
-
-```
-Daily buffer = $1,000,000 × 0.0004 × 2 = $800/day = $292,000/year
-```
-
-Этот буфер — страховой фонд пула на случай экстремальных движений.
-
-### 4.5 Критический сценарий
-
-Худший случай: массовый mint при высоком SOL → мгновенный крах SOL → массовый redeem.
-
-```
-1. SOL = $200. Зачеканено 1000 shortSOL по $144.50 каждый.
-   R = 1000 × 144.50 × 1.0004 = $144,558
-
-2. SOL мгновенно падает до $50.
-   shortSOL price = 28900/50 = $578
-   Обязательства = 1000 × 578 = $578,000
-
-3. Ratio = 144,558 / 578,000 = 0.25 → дефицит 75%
-```
-
-**Это реальный risk.** Митигация:
-
-1. При постепенном падении — часть holders продаёт по дороге вниз (фиксирует прибыль), уменьшая N
-2. Новые мintы при низком SOL вносят больше коллатерала per token
-3. Буфер накопленных комиссий
-4. Circuit breakers (см. раздел 8)
+1. **Accumulated fee buffer** from many operations at varying prices
+2. **LP principal** as collateral base
+3. **Dynamic fees** that increase under vault stress
+4. **Funding rate** (k-decay) that continuously reduces obligations
+5. **Circuit breaker** at 95% coverage ratio
 
 ---
 
-## 5. Ликвидность: инкапсулированная модель
+## 5. Dynamic Fee System
 
-### 5.1 Concept: Total Value Available (TVA)
+### 5.1 Fee Calculation
 
-В отличие от TVL (Total Value Locked), Holging оперирует понятием TVA — весь коллатерал, доступный для redemption, без lock-up периодов.
+From `fees.rs` → `calc_dynamic_fee()`. Multipliers applied to `DEFAULT_FEE_BPS = 4`:
 
-```
-TVA = LiquidityVault.balance (USDC)
-```
+| Vault Health Ratio | Multiplier | Per-Side Fee | Roundtrip | Purpose |
+|---|---|---|---|---|
+| > 200% (healthy) | ×5 | 20 bps (0.20%) | 40 bps (0.40%) | Standard operation |
+| 150–200% (normal) | ×10 | 40 bps (0.40%) | 80 bps (0.80%) | Elevated pricing |
+| 100–150% (elevated) | ×15 | 60 bps (0.60%) | 120 bps (1.20%) | Stress pricing |
+| < 100% (critical) | ×20 | 80 bps (0.80%) | 160 bps (1.60%) | Emergency brake |
 
-TVA растёт с каждым mint и уменьшается с каждым redeem.
+All fees clamped to max 100 bps (1%) per side.
 
-### 5.2 Zero Slippage
-
-Minting Engine торгует **всегда по цене оракула ± fee**. Нет order book, нет AMM curve. Это означает:
-
-```
-Slippage = 0   для любого размера ордера, если TVA ≥ order_size
-```
-
-Ограничение: при redeem ордер не может превышать TVA. На практике TVA ≈ market cap shortSOL.
-
-### 5.3 Вторичный рынок
-
-После листинга shortSOL на DEX (Raydium, Jupiter) появляется вторичный рынок. Minting Engine выступает «якорем» цены:
+### 5.2 Vault Health Ratio
 
 ```
-Если DEX price > Oracle price + fee:
-  → арбитражёр минтит через ME, продаёт на DEX → цена падает
-
-Если DEX price < Oracle price - fee:
-  → арбитражёр покупает на DEX, редимит через ME → цена растёт
-
-Равновесие: DEX price ∈ [Oracle - fee, Oracle + fee]
+obligations = circulating × shortSOL_price   (USDC terms)
+ratio_bps = vault_balance × 10,000 / obligations
 ```
 
-Эффективный спред на вторичном рынке = 2 × fee = 0.08%.
+### 5.3 Automatic Stabilizer
+
+Dynamic fees form a self-correcting mechanism:
+- Under vault stress → higher fees → slower redemptions + cheaper mints → vault recovers
+- Healthy vault → lower fees → attracts volume → generates more fee revenue
+
+### 5.4 Fee Distribution
+
+100% of trading fees flow to LP providers via the `fee_per_share_accumulated` accumulator (precision 1e12). No protocol fee split in current implementation.
 
 ---
 
-## 6. Архитектура Solana-программы
+## 6. Funding Rate (k-Decay)
 
-### 6.1 Обзор
+### 6.1 Mechanism
+
+The protocol charges a continuous funding rate by decaying k over time:
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                  Holging Program                    │
-│                  (Anchor / Rust)                      │
-│                                                       │
-│  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐ │
-│  │   State      │  │ Instructions │  │   Events    │ │
-│  │             │  │              │  │             │ │
-│  │ PoolState   │  │ initialize() │  │ MintEvent   │ │
-│  │ UserState   │  │ mint()       │  │ RedeemEvent │ │
-│  │             │  │ redeem()     │  │ PriceUpdate │ │
-│  │             │  │ update_k()   │  │             │ │
-│  │             │  │ pause()      │  │             │ │
-│  └─────────────┘  └──────────────┘  └─────────────┘ │
-│                                                       │
-│  ┌──────────────────────────────────────────────────┐ │
-│  │                   Accounts                        │ │
-│  │                                                    │ │
-│  │  pool_state     PDA [program, "pool"]             │ │
-│  │  vault_usdc     PDA [program, "vault", mint_usdc] │ │
-│  │  mint_shortsol  PDA [program, "shortsol_mint"]    │ │
-│  │  pyth_feed      External (SOL/USD)                │ │
-│  └──────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────┘
+k_new = k_old × (denom − rate_bps × elapsed_secs) / denom
+denom = SECS_PER_DAY × BPS_DENOMINATOR = 86,400 × 10,000 = 864,000,000
 ```
 
-### 6.2 Account Structures
+Current rate: **10 bps/day** = 0.10%/day = **30.59% compound/year**.
+
+### 6.2 Application
+
+- **Inline** during every mint/redeem (via `apply_funding_inline`)
+- **Standalone** via permissionless `accrue_funding` instruction (keeper calls hourly)
+- `elapsed` capped at 30 days per call (`MAX_FUNDING_ELAPSED_SECS`)
+- Floor: `k ≥ MIN_K = 1,000,000` to prevent decay to zero
+
+### 6.3 LP Revenue from Funding
+
+When k decays, obligations shrink. The freed USDC is distributed to LP providers:
+
+```
+freed_usdc = obligations_before − obligations_after
+accumulate_fee(pool, freed_usdc)   // → LP fee accumulator
+```
+
+This creates a **floor yield** for LPs: ~30.6% APY independent of trading volume.
+
+### 6.4 Rate Table
+
+| rate_bps/day | Daily Decay | Annual Compound |
+|---|---|---|
+| 1 | 0.01% | 3.57% |
+| 5 | 0.05% | 16.62% |
+| **10** | **0.10%** | **30.59%** |
+| 20 | 0.20% | 52.15% |
+| 50 | 0.50% | 83.86% |
+| 100 | 1.00% | 97.36% |
+
+---
+
+## 7. LP System
+
+### 7.1 Architecture
+
+```
+LP Provider → add_liquidity(usdc_amount) → LP tokens minted
+LP Provider → remove_liquidity(lp_shares) → USDC returned (principal)
+LP Provider → claim_lp_fees() → USDC claimed (accumulated fees)
+```
+
+### 7.2 Share Calculation (Dead Shares Pattern)
+
+From `fees.rs` → `calc_lp_shares()`:
+
+```
+shares = usdc_amount × (lp_total_supply + VIRTUAL_SHARES) / (lp_principal + VIRTUAL_ASSETS)
+```
+
+VIRTUAL_SHARES = VIRTUAL_ASSETS = 1,000 — ERC-4626 defense against first-depositor inflation attack.
+
+### 7.3 Fee Accumulator
+
+Per-share accumulator with 1e12 precision (`SHARE_PRECISION`):
+
+```
+On each fee event:
+  delta = fee_amount × SHARE_PRECISION / lp_total_supply
+  fee_per_share_accumulated += delta
+  total_lp_fees_pending += fee_amount
+
+On LP settle (before deposit/withdraw/claim):
+  earned = (fee_per_share_accumulated − checkpoint) × lp_shares / SHARE_PRECISION
+  pending_fees += earned
+  checkpoint = fee_per_share_accumulated
+```
+
+### 7.4 LP Revenue Sources
+
+1. **Trading fees** — 100% of mint/redeem fees
+2. **Funding rate** — freed USDC from k-decay
+
+### 7.5 LP APY Model
+
+```
+Fee_APY = (Daily_Volume × Roundtrip_Fee / TVL) × 365
+Funding_APY = 1 − (1 − rate_bps/10,000)^365 ≈ 30.59% at 10 bps/day
+Total_APY = Fee_APY + Funding_APY
+```
+
+| Scenario | TVL | Daily Volume | Fee APY | Funding APY | **Total APY** |
+|---|---|---|---|---|---|
+| Conservative | $500K | $100K | 29.2% | 36.5% | **65.7%** |
+| Moderate | $1M | $250K | 36.5% | 36.5% | **73.0%** |
+| Aggressive | $2M | $500K | 36.5% | 36.5% | **73.0%** |
+
+### 7.6 Protections
+
+- Admin **cannot** withdraw LP principal or pending fees (`withdraw_fees` guards `lp_principal + total_lp_fees_pending`)
+- LP withdrawal blocked if vault ratio < 110% (`MIN_VAULT_POST_WITHDRAWAL_BPS = 11,000`)
+- Minimum deposit: $100 USDC (`MIN_LP_DEPOSIT`)
+
+---
+
+## 8. Liquidity: Encapsulated Model
+
+### 8.1 Zero Slippage
+
+Minting Engine trades **always at oracle price ± fee**. No order book, no AMM curve:
+
+```
+Slippage = 0   for any order size, if vault_balance ≥ order_size
+```
+
+### 8.2 Secondary Market Arbitrage
+
+After DEX listing (Jupiter/Raydium), Minting Engine anchors the price:
+
+```
+DEX price > Oracle + fee  → arbitrageur mints via ME, sells on DEX → price falls
+DEX price < Oracle − fee  → arbitrageur buys on DEX, redeems via ME → price rises
+
+Equilibrium: DEX price ∈ [Oracle − fee, Oracle + fee]
+```
+
+---
+
+## 9. Solana Program Architecture
+
+### 9.1 Overview
+
+```
+Program ID: CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX
+
+┌──────────────────────────────────────────────────────────────┐
+│                     Holging Program                          │
+│                     (Anchor / Rust)                          │
+│                                                              │
+│  ┌─────────────┐  ┌───────────────────┐  ┌───────────────┐  │
+│  │   State      │  │   Instructions    │  │    Events     │  │
+│  │             │  │   (20 total)      │  │  (14 types)   │  │
+│  │ PoolState   │  │                   │  │               │  │
+│  │ FundingConf │  │ initialize        │  │ MintEvent     │  │
+│  │ LpPosition  │  │ mint / redeem     │  │ RedeemEvent   │  │
+│  │             │  │ add/remove_liq    │  │ LpDeposit/    │  │
+│  │             │  │ claim_lp_fees     │  │  Withdraw/    │  │
+│  │             │  │ accrue_funding    │  │  FeeClaimed   │  │
+│  │             │  │ update_fee/k      │  │ FundingAccrued│  │
+│  │             │  │ pause / unpause   │  │ FundingDistrib│  │
+│  │             │  │ transfer/accept   │  │ CircuitBreaker│  │
+│  │             │  │  _authority       │  │ Pause/Update* │  │
+│  │             │  │ initialize_lp     │  │               │  │
+│  │             │  │ initialize_funding│  │               │  │
+│  │             │  │ update_price      │  │               │  │
+│  │             │  │ create_metadata   │  │               │  │
+│  │             │  │ set_feed_id       │  │               │  │
+│  │             │  │ update_min_lp_dep │  │               │  │
+│  │             │  │ update_funding_rt │  │               │  │
+│  └─────────────┘  └───────────────────┘  └───────────────┘  │
+│                                                              │
+│  ┌─ Modules ──────────────────────────────────────────────┐  │
+│  │ constants.rs  fees.rs  oracle.rs  errors.rs  events.rs │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Multi-Pool Architecture
+
+All instructions are parameterized by `pool_id: String`:
+
+```
+pools: sol, tsla, spy, aapl   (each with own Pyth feed)
+```
+
+PDA derivation includes `pool_id`:
 
 ```rust
-#[account]
+Pool PDA:       seeds = [b"pool",          pool_id.as_bytes()]
+Vault PDA:      seeds = [b"vault",         usdc_mint.as_ref(), pool_id.as_bytes()]
+shortSOL Mint:  seeds = [b"shortsol_mint", pool_id.as_bytes()]
+Mint Authority: seeds = [b"mint_auth",     pool_id.as_bytes()]
+LP Mint:        seeds = [b"lp_mint",       pool_pda.as_ref()]
+LP Position:    seeds = [b"lp_position",   pool_pda.as_ref(), owner.as_ref()]
+FundingConfig:  seeds = [b"funding",       pool_pda.as_ref()]
+```
+
+### 9.3 Account: PoolState
+
+```rust
 pub struct PoolState {
-    pub authority: Pubkey,          // 32 bytes — admin
-    pub k: u64,                     // 8 bytes — normalizing constant (scaled 1e9)
-    pub fee_bps: u16,               // 2 bytes — fee in basis points (4 = 0.04%)
-    pub total_minted: u64,          // 8 bytes — total shortSOL ever minted
-    pub total_redeemed: u64,        // 8 bytes — total shortSOL ever redeemed
-    pub circulating: u64,           // 8 bytes — current shortSOL supply
-    pub total_fees_collected: u64,  // 8 bytes — cumulative fees (USDC, scaled 1e6)
-    pub vault_balance: u64,         // 8 bytes — USDC in vault (scaled 1e6)
-    pub pyth_feed: Pubkey,          // 32 bytes — Pyth SOL/USD price feed
-    pub shortsol_mint: Pubkey,      // 32 bytes — SPL token mint
-    pub paused: bool,               // 1 byte — emergency pause
-    pub last_oracle_price: u64,     // 8 bytes — cached (scaled 1e9)
-    pub last_oracle_timestamp: i64, // 8 bytes
-    pub bump: u8,                   // 1 byte — PDA bump
-}
-// Total: ~166 bytes + padding
-```
+    // Core
+    pub authority: Pubkey,              // Admin (transfer via two-step)
+    pub k: u128,                        // Normalizing constant (×PRICE_PRECISION)
+    pub fee_bps: u16,                   // Base fee (4 = 0.04%)
+    pub paused: bool,                   // Emergency pause
 
-### 6.3 Instruction: mint()
+    // Supply tracking
+    pub total_minted: u64,              // Lifetime minted (1e9)
+    pub total_redeemed: u64,            // Lifetime redeemed (1e9)
+    pub circulating: u64,               // Current supply (1e9)
 
-```rust
-pub fn mint(ctx: Context<Mint>, usdc_amount: u64) -> Result<()> {
-    let pool = &mut ctx.accounts.pool_state;
-    require!(!pool.paused, ErrorCode::Paused);
+    // Vault
+    pub vault_balance: u64,             // USDC in vault (1e6)
+    pub total_fees_collected: u64,      // Cumulative fees (1e6)
 
-    // 1. Read Pyth oracle
-    let price_feed = &ctx.accounts.pyth_feed;
-    let sol_price = get_pyth_price(price_feed)?;  // scaled 1e9
+    // Oracle
+    pub pyth_feed: Pubkey,              // Pyth price feed account
+    pub pyth_feed_id: [u8; 64],         // Pyth feed ID hex bytes
+    pub last_oracle_price: u64,         // Cached price (1e9)
+    pub last_oracle_timestamp: i64,     // Cached timestamp
 
-    // 2. Staleness check
-    let clock = Clock::get()?;
-    let price_age = clock.unix_timestamp - price_feed.timestamp;
-    require!(price_age <= MAX_STALENESS_SEC, ErrorCode::StaleOracle);
+    // LP system
+    pub lp_mint: Pubkey,                // LP token mint PDA
+    pub lp_total_supply: u64,           // Mirror of lp_mint.supply
+    pub fee_per_share_accumulated: u128, // Fee accumulator (×SHARE_PRECISION)
+    pub lp_principal: u64,              // Total USDC deposited by LPs
+    pub min_lp_deposit: u64,            // Minimum LP deposit
+    pub total_lp_fees_pending: u64,     // Sum of all LP pending fees
+    pub shortsol_mint: Pubkey,          // shortSOL SPL token mint
 
-    // 3. Confidence check
-    require!(
-        price_feed.confidence * 100 / sol_price < MAX_CONFIDENCE_PCT,
-        ErrorCode::OracleConfidenceTooWide
-    );
-
-    // 4. Calculate shortSOL price
-    //    shortsol_price = k / sol_price
-    let shortsol_price = pool.k
-        .checked_mul(PRICE_PRECISION)
-        .unwrap()
-        .checked_div(sol_price)
-        .unwrap();
-
-    // 5. Apply fee (ask price)
-    let fee_amount = usdc_amount
-        .checked_mul(pool.fee_bps as u64)
-        .unwrap()
-        .checked_div(10_000)
-        .unwrap();
-    let effective_usdc = usdc_amount.checked_sub(fee_amount).unwrap();
-
-    // 6. Calculate tokens to mint
-    //    tokens = effective_usdc / shortsol_price
-    let tokens = effective_usdc
-        .checked_mul(PRICE_PRECISION)
-        .unwrap()
-        .checked_div(shortsol_price)
-        .unwrap();
-
-    require!(tokens > 0, ErrorCode::AmountTooSmall);
-
-    // 7. Transfer USDC from user to vault
-    transfer_usdc(
-        &ctx.accounts.user_usdc,
-        &ctx.accounts.vault_usdc,
-        usdc_amount,
-        &ctx.accounts.user,
-        &ctx.accounts.token_program,
-    )?;
-
-    // 8. Mint shortSOL to user
-    mint_shortsol(
-        &ctx.accounts.shortsol_mint,
-        &ctx.accounts.user_shortsol,
-        tokens,
-        &pool.to_account_info(),
-        pool.bump,
-        &ctx.accounts.token_program,
-    )?;
-
-    // 9. Update state
-    pool.circulating = pool.circulating.checked_add(tokens).unwrap();
-    pool.total_minted = pool.total_minted.checked_add(tokens).unwrap();
-    pool.vault_balance = pool.vault_balance.checked_add(usdc_amount).unwrap();
-    pool.total_fees_collected = pool.total_fees_collected.checked_add(fee_amount).unwrap();
-    pool.last_oracle_price = sol_price;
-    pool.last_oracle_timestamp = clock.unix_timestamp;
-
-    // 10. Emit event
-    emit!(MintEvent {
-        user: ctx.accounts.user.key(),
-        usdc_in: usdc_amount,
-        tokens_out: tokens,
-        sol_price,
-        shortsol_price,
-        fee: fee_amount,
-        timestamp: clock.unix_timestamp,
-    });
-
-    Ok(())
+    // Admin
+    pub pending_authority: Pubkey,      // Two-step authority transfer
+    pub bump: u8,                       // PDA bump
+    pub mint_auth_bump: u8,             // Mint authority bump
 }
 ```
 
-### 6.4 Instruction: redeem()
+### 9.4 Account: FundingConfig
 
 ```rust
-pub fn redeem(ctx: Context<Redeem>, shortsol_amount: u64) -> Result<()> {
-    let pool = &mut ctx.accounts.pool_state;
-    require!(!pool.paused, ErrorCode::Paused);
-
-    // 1-3. Oracle checks (same as mint)
-    let sol_price = get_pyth_price(&ctx.accounts.pyth_feed)?;
-    // ... staleness + confidence checks ...
-
-    // 4. Calculate USDC out
-    let shortsol_price = pool.k
-        .checked_mul(PRICE_PRECISION)
-        .unwrap()
-        .checked_div(sol_price)
-        .unwrap();
-
-    let gross_usdc = shortsol_amount
-        .checked_mul(shortsol_price)
-        .unwrap()
-        .checked_div(PRICE_PRECISION)
-        .unwrap();
-
-    // 5. Apply fee (bid price)
-    let fee_amount = gross_usdc
-        .checked_mul(pool.fee_bps as u64)
-        .unwrap()
-        .checked_div(10_000)
-        .unwrap();
-    let net_usdc = gross_usdc.checked_sub(fee_amount).unwrap();
-
-    // 6. Solvency check
-    require!(net_usdc <= pool.vault_balance, ErrorCode::InsufficientLiquidity);
-
-    // 7. Burn shortSOL
-    burn_shortsol(
-        &ctx.accounts.shortsol_mint,
-        &ctx.accounts.user_shortsol,
-        shortsol_amount,
-        &ctx.accounts.user,
-        &ctx.accounts.token_program,
-    )?;
-
-    // 8. Transfer USDC to user
-    transfer_usdc_from_vault(
-        &ctx.accounts.vault_usdc,
-        &ctx.accounts.user_usdc,
-        net_usdc,
-        &pool.to_account_info(),
-        pool.bump,
-        &ctx.accounts.token_program,
-    )?;
-
-    // 9. Update state
-    pool.circulating = pool.circulating.checked_sub(shortsol_amount).unwrap();
-    pool.total_redeemed = pool.total_redeemed.checked_add(shortsol_amount).unwrap();
-    pool.vault_balance = pool.vault_balance.checked_sub(net_usdc).unwrap();
-    pool.total_fees_collected = pool.total_fees_collected.checked_add(fee_amount).unwrap();
-
-    // 10. Emit event
-    emit!(RedeemEvent { /* ... */ });
-
-    Ok(())
+pub struct FundingConfig {
+    pub rate_bps: u16,          // Funding rate (bps/day), default 10
+    pub last_funding_at: i64,   // Last accrual timestamp
+    pub bump: u8,
 }
 ```
 
-### 6.5 PDA Derivation
+### 9.5 Account: LpPosition
 
 ```rust
-// Pool state PDA
-seeds = [b"pool", pool_id.as_bytes()]
-bump = pool_state.bump
-
-// Vault USDC (token account owned by program)
-seeds = [b"vault", usdc_mint.key().as_ref()]
-
-// shortSOL mint authority
-seeds = [b"mint_auth"]
-```
-
-### 6.6 Account Validation (Anchor)
-
-```rust
-#[derive(Accounts)]
-pub struct Mint<'info> {
-    #[account(
-        mut,
-        seeds = [b"pool"],
-        bump = pool_state.bump,
-    )]
-    pub pool_state: Account<'info, PoolState>,
-
-    #[account(
-        mut,
-        seeds = [b"vault", usdc_mint.key().as_ref()],
-        bump,
-        token::mint = usdc_mint,
-        token::authority = pool_state,
-    )]
-    pub vault_usdc: Account<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        constraint = shortsol_mint.key() == pool_state.shortsol_mint
-    )]
-    pub shortsol_mint: Account<'info, token::Mint>,
-
-    #[account(
-        constraint = pyth_feed.key() == pool_state.pyth_feed
-    )]
-    pub pyth_feed: Account<'info, PriceUpdateV2>,
-
-    #[account(mut)]
-    pub user_usdc: Account<'info, TokenAccount>,
-
-    #[account(
-        init_if_needed,
-        payer = user,
-        associated_token::mint = shortsol_mint,
-        associated_token::authority = user,
-    )]
-    pub user_shortsol: Account<'info, TokenAccount>,
-
-    pub usdc_mint: Account<'info, token::Mint>,
-
-    #[account(mut)]
-    pub user: Signer<'info>,
-
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>,
+pub struct LpPosition {
+    pub owner: Pubkey,
+    pub pool: Pubkey,
+    pub lp_shares: u64,
+    pub fee_per_share_checkpoint: u128,
+    pub pending_fees: u64,
+    pub bump: u8,
 }
 ```
+
+### 9.6 Instruction Summary (20 total)
+
+| Category | Instruction | Who | Description |
+|---|---|---|---|
+| **Core** | `initialize` | Admin | Create pool with k, fee, Pyth feed |
+| | `mint` | User | Deposit USDC → receive shortSOL (with slippage protection) |
+| | `redeem` | User | Burn shortSOL → receive USDC (with slippage protection) |
+| **LP** | `initialize_lp` | Admin | Create LP mint for pool |
+| | `add_liquidity` | Anyone | Deposit USDC → receive LP shares |
+| | `remove_liquidity` | LP owner | Burn LP shares → receive USDC |
+| | `claim_lp_fees` | LP owner | Claim accumulated USDC fees |
+| **Funding** | `initialize_funding` | Admin | Create FundingConfig with rate |
+| | `accrue_funding` | Permissionless | Apply k-decay + distribute freed USDC to LPs |
+| | `update_funding_rate` | Admin | Change funding rate (max 100 bps/day) |
+| **Admin** | `update_fee` | Admin | Change base fee (max 100 bps) |
+| | `update_k` | Admin | Change k (only when circulating == 0) |
+| | `set_pause` | Admin | Pause/unpause pool |
+| | `withdraw_fees` | Admin | Withdraw excess above 110% obligations + LP reserved |
+| | `transfer_authority` | Admin | Propose new authority (step 1) |
+| | `accept_authority` | New admin | Accept authority (step 2) |
+| | `update_min_lp_deposit` | Admin | Change minimum LP deposit |
+| | `set_feed_id` | Admin | Change Pyth feed ID |
+| **Utility** | `update_price` | Permissionless | Refresh cached oracle price |
+| | `create_metadata` | Admin | Set SPL token metadata (name, symbol, uri) |
 
 ---
 
-## 7. Oracle-интеграция (Pyth Network)
+## 10. Oracle Integration (Pyth Network)
 
-### 7.1 Почему Pyth, а не Chainlink
+### 10.1 Why Pyth
 
-```
-                    Pyth Network         Chainlink (EVM)
-  ──────────────────────────────────────────────────────
-  Модель           Pull-based            Push-based
-  Latency          ~400ms                ~1-12s (L1 dependent)
-  Cost/update      Included in tx        Separate tx ($)
-  Solana native    Да                    Через Wormhole/bridge
-  Confidence       Встроенный interval   Нет
-  Publishers       90+ (jump, wintermute)  Variable
-```
+| | Pyth Network | Chainlink |
+|---|---|---|
+| Model | Pull-based | Push-based |
+| Latency | ~400ms | ~1-12s |
+| Solana native | Yes | Via bridge |
+| Confidence interval | Built-in | No |
+| Publishers | 90+ (Jump, Wintermute) | Variable |
 
-### 7.2 Price Feed Integration
+### 10.2 4-Layer Validation
 
-```rust
-use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
+From `oracle.rs` → `get_validated_price()`:
 
-fn get_pyth_price(price_update: &Account<PriceUpdateV2>) -> Result<u64> {
-    let feed_id = get_feed_id_from_hex(SOL_USD_FEED_ID)?;
-    let price = price_update.get_price_no_older_than(
-        &Clock::get()?,
-        MAX_STALENESS_SEC,  // 30 seconds
-        &feed_id,
-    )?;
+1. **Staleness**: price must be ≤ MAX_STALENESS_SECS old (30s mainnet / 259,200s devnet)
+2. **Confidence**: confidence_pct < 2% of price
+3. **Deviation**: |new_price − cached_price| ≤ 15% (1,500 bps)
+4. **Floor**: price ≥ $1.00 (MIN_PRICE)
 
-    // Pyth price has exponent (e.g. price=17250, expo=-2 → $172.50)
-    // Convert to our internal representation (scaled 1e9)
-    let adjusted = if price.exponent >= 0 {
-        (price.price as u64) * 10u64.pow(price.exponent as u32) * PRICE_PRECISION
-    } else {
-        (price.price as u64) * PRICE_PRECISION / 10u64.pow((-price.exponent) as u32)
-    };
+### 10.3 Price Feeds
 
-    Ok(adjusted)
-}
-```
-
-### 7.3 Safety Guards
-
-```rust
-const MAX_STALENESS_SEC: u64 = 30;          // Reject prices older than 30s
-const MAX_CONFIDENCE_PCT: u64 = 2;           // Reject if confidence > 2% of price
-const MAX_PRICE_DEVIATION_PCT: u64 = 15;     // Reject if > 15% change vs last cached
-const MIN_PRICE_USD: u64 = 1_000_000_000;    // $1 minimum (prevent division by near-zero)
-```
+| Pool | Asset | Pyth Feed ID |
+|---|---|---|
+| sol | SOL/USD | `ef0d8b6f...b56d` |
+| tsla | TSLA/USD | `16dad506...32f1` |
+| spy | SPY/USD | `19e09bb8...1cd5` |
+| aapl | AAPL/USD | `49f6b65c...5688` |
 
 ---
 
-## 8. Безопасность и edge cases
+## 11. Security & Edge Cases
 
-### 8.1 Oracle Manipulation
+### 11.1 Oracle Manipulation
 
-**Атака:** злоумышленник манипулирует Pyth feed → минтит по заниженной цене → редимит по завышенной.
+**Attack:** manipulate Pyth feed → mint at low price → redeem at high price.
 
-**Защита:**
-1. Confidence interval check — Pyth публикует confidence; отклоняем если слишком широкий
-2. Price deviation guard — отклоняем если цена изменилась >15% vs cached
-3. Rate limiting — максимум N операций на user за block
-4. Emergency pause — admin может заморозить программу
+**Defense:**
+1. Confidence interval check — reject wide CI
+2. Price deviation guard — reject >15% change vs cached
+3. Rate limiting — 2-second cooldown between mint/redeem
+4. Emergency pause — admin can freeze pool
 
-### 8.2 Flash Loan Attack
+### 11.2 Solvency Crisis
 
-**Атака:** flash loan для моментального mint → manipulate → redeem.
+**Scenario:** vault_balance < redemption obligations.
 
-**Защита:**
-1. На Solana нет нативных flash loans (в отличие от EVM)
-2. Pyth price обновляется вне tx пользователя — нельзя манипулировать в той же транзакции
-3. Можно добавить minimum hold period (1 slot = 400ms)
-
-### 8.3 Solvency Crisis
-
-**Сценарий:** vault balance < redemption obligations.
-
-**Защита:**
-1. Proportional redemption — при дефиците пользователь получает пропорциональную долю vault
-2. Circuit breaker — автоматическая пауза при vault ratio < threshold
-3. Fee buffer — накопленные комиссии как первый буфер
+**Defense:**
+1. Circuit breaker — auto-pause at vault ratio < 95%
+2. Dynamic fees — up to 80 bps per side under stress
+3. Fee buffer — accumulated trading fees
+4. Funding rate — k-decay continuously reduces obligations
+5. LP collateral — admin cannot withdraw LP principal
 
 ```rust
-// Circuit breaker
-let obligations = pool.circulating * shortsol_price / PRICE_PRECISION;
-let ratio = pool.vault_balance * 10_000 / obligations;
-
-if ratio < MIN_VAULT_RATIO_BPS {  // e.g. 9500 = 95%
+// Circuit breaker (in redeem)
+let ratio_bps = vault_balance × 10,000 / obligations;
+if ratio_bps < MIN_VAULT_RATIO_BPS {  // 9,500 = 95%
     pool.paused = true;
-    emit!(CircuitBreakerTriggered { ratio, timestamp: clock.unix_timestamp });
-    return Err(ErrorCode::CircuitBreaker.into());
+    emit!(CircuitBreakerTriggered { ratio_bps, timestamp });
 }
 ```
 
-### 8.4 Integer Overflow
+### 11.3 First-Depositor LP Attack
 
-Все арифметические операции используют checked_mul, checked_div, checked_add, checked_sub. При overflow — транзакция revert.
+**Attack:** classic ERC-4626 share inflation — first LP deposits 1 wei, donates to vault.
 
-Максимальные значения:
-```
-k (u64): max 18.4 × 10¹⁸ → при precision 1e9: max price $18.4B (достаточно)
-USDC amount (u64): max 18.4 × 10¹² с precision 1e6 (достаточно)
-shortSOL supply (u64): с precision 1e9 → max 18.4B tokens (достаточно)
-```
+**Defense:** Dead shares pattern with VIRTUAL_SHARES = VIRTUAL_ASSETS = 1,000.
 
-### 8.5 Reentrancy
+### 11.4 Integer Overflow
 
-Solana runtime предотвращает reentrancy нативно: программа не может вызвать саму себя через CPI (cross-program invocation) в том же контексте исполнения.
+All arithmetic uses checked_mul, checked_div, checked_add, checked_sub. Overflow → transaction reverts.
+
+### 11.5 Reentrancy
+
+Solana runtime prevents reentrancy natively — a program cannot invoke itself via CPI in the same execution context.
+
+### 11.6 Two-Step Authority Transfer
+
+Admin key change requires two transactions:
+1. `transfer_authority(new_admin)` — proposes new authority
+2. `accept_authority()` — new admin confirms
+
+Prevents accidental or malicious single-step key transfer.
 
 ---
 
-## 9. Сравнение с EVM-реализацией (Shordex)
+## 12. Protocol Constants
 
-```
-                        Holging (Solana)         Shordex (EVM/Polygon)
-  ────────────────────────────────────────────────────────────────────
-  Consensus             PoH + PoS                  PoS (Polygon)
-  Block time            400ms                      2s
-  Tx cost               ~$0.001                    ~$0.01-0.05
-  Oracle                Pyth (pull, 400ms)         Chainlink (push, ~1s)
-  Token standard        SPL Token                  ERC20
-  Liquidity model       PDA vault                  Encapsulated in ERC20
-  Flash loan risk       Low (no native)            Higher (EVM flash loans)
-  Reentrancy risk       None (runtime)             Requires checks
-  Composability         Jupiter, Raydium           Uniswap, 1inch
-  Mobile integration    Solafon Mini App           Generic wallet
-  Formal verification   TBD                        Pruvendo (claimed)
-  Audit                 TBD (OtterSec target)      Titan (claimed)
-```
+From `constants.rs`:
 
-### 9.1 Преимущества Solana
+| Constant | Value | Meaning |
+|---|---|---|
+| `PRICE_PRECISION` | 1,000,000,000 (1e9) | Fixed-point price scaling |
+| `USDC_DECIMALS` | 6 | USDC token decimals |
+| `SHORTSOL_DECIMALS` | 9 | shortSOL token decimals |
+| `DEFAULT_FEE_BPS` | 4 | Base fee 0.04% (dynamic ×5–×20) |
+| `MIN_VAULT_RATIO_BPS` | 9,500 | Circuit breaker at 95% |
+| `MIN_VAULT_POST_WITHDRAWAL_BPS` | 11,000 | Admin withdrawal floor 110% |
+| `MAX_STALENESS_SECS` | 30 (mainnet) / 259,200 (devnet) | Oracle freshness |
+| `MAX_CONFIDENCE_PCT` | 2 | Pyth CI limit (2%) |
+| `MAX_PRICE_DEVIATION_BPS` | 1,500 | 15% price deviation cap |
+| `MAX_UPDATE_PRICE_DEVIATION_BPS` | 1,500 | 15% for update_price |
+| `MIN_PRICE` | 1,000,000,000 | $1.00 floor |
+| `BPS_DENOMINATOR` | 10,000 | Basis points denominator |
+| `MAX_FUNDING_RATE_BPS` | 100 | 1%/day governance cap |
+| `MIN_K` | 1,000,000 | k floor (prevents decay to zero) |
+| `MAX_FUNDING_ELAPSED_SECS` | 2,592,000 | 30-day funding cap per call |
+| `SECS_PER_DAY` | 86,400 | Funding denominator |
+| `MIN_ACTION_INTERVAL_SECS` | 2 | Rate limit (2s cooldown) |
+| `MAX_POOL_ID_LEN` | 32 | Pool ID max bytes |
+| `SHARE_PRECISION` | 1,000,000,000,000 (1e12) | LP fee accumulator precision |
+| `VIRTUAL_SHARES` | 1,000 | Dead shares (ERC-4626 defense) |
+| `VIRTUAL_ASSETS` | 1,000 | Dead assets (ERC-4626 defense) |
+| `LP_TOKEN_DECIMALS` | 6 | LP token decimals |
+| `MIN_LP_DEPOSIT` | 100,000,000 | $100 USDC minimum LP |
 
-1. **Latency:** 400ms finality → окно для oracle arbitrage в 30× меньше чем EVM L1
-2. **Cost:** fee модели 0.04% рентабельна от tx $2.50 (на ETH L1 — от $25K+)
-3. **No flash loans:** основной вектор атаки EVM отсутствует
-4. **Pyth native:** oracle feed обновляется в каждом slot, не требует отдельных tx
-5. **Mobile-first:** через Solafon = кошелёк + dApp + дистрибуция
+### Error Codes (21)
 
-### 9.2 Преимущества EVM
+| Code | Name | Description |
+|---|---|---|
+| 6000 | `Paused` | Pool is paused |
+| 6001 | `StaleOracle` | Price too old or feed_id invalid |
+| 6002 | `OracleConfidenceTooWide` | CI > 2% |
+| 6003 | `PriceDeviationTooHigh` | >15% change vs cached |
+| 6004 | `InsufficientLiquidity` | Vault can't cover redeem |
+| 6005 | `AmountTooSmall` | Zero tokens output |
+| 6006 | `CircuitBreaker` | Vault ratio < 95% |
+| 6007 | `RateLimitExceeded` | <2s between operations |
+| 6008 | `PriceBelowMinimum` | Price < $1.00 |
+| 6009 | `MathOverflow` | Arithmetic overflow |
+| 6010 | `Unauthorized` | Wrong authority |
+| 6011 | `InvalidFee` | fee_bps > 100 or rate > max |
+| 6012 | `CirculatingNotZero` | Can't update k with supply |
+| 6013 | `InvalidPoolId` | Pool ID > 32 bytes |
+| 6014 | `SlippageExceeded` | Output below min_tokens_out |
+| 6015 | `NoPendingAuthority` | No pending transfer |
+| 6016 | `BelowMinLpDeposit` | LP deposit < $100 |
+| 6017 | `LpNotInitialized` | LP system not set up |
+| 6018 | `FundingConfigRequired` | FundingConfig missing |
+| 6019 | `NoFeesToClaim` | No pending LP fees |
+| 6020 | `InsufficientLpShares` | Not enough LP tokens |
 
-1. **TVL dominance:** больше капитала в DeFi-экосистеме
-2. **Tooling:** более зрелые аудиторские и верификационные инструменты
-3. **ERC20 стандарт:** более широкая совместимость с DeFi-протоколами
-4. **Multi-chain:** деплой на любую EVM-сеть (Arbitrum, Base, etc.)
+### Events (14)
 
----
-
-## 10. Roadmap к production
-
-### Phase 1: Devnet MVP (текущая)
-
-```
-[ ] Anchor program: initialize, mint, redeem
-[ ] Pyth devnet integration (SOL/USD)
-[ ] SPL Token mint + vault PDA
-[ ] Basic safety guards (staleness, confidence)
-[ ] Frontend prototype (React, real prices)
-[ ] Solafon Mini App shell
-```
-
-### Phase 2: Testnet + Audit
-
-```
-[ ] Deployment on Solana testnet
-[ ] Security audit (target: OtterSec or Neodyme)
-[ ] Fuzz testing (Trident framework)
-[ ] Circuit breaker implementation
-[ ] Rate limiting per user
-[ ] Stress testing: 10K+ concurrent mints
-[ ] Community alpha testing
-```
-
-### Phase 3: Mainnet Launch
-
-```
-[ ] Mainnet deployment (shortSOL for SOL/USD)
-[ ] Jupiter aggregator integration
-[ ] Raydium CLMM pool (shortSOL/USDC)
-[ ] Holging vault (automated 50/50 strategy)
-[ ] Analytics dashboard (TVA, volume, fees)
-[ ] Bug bounty program
-```
-
-### Phase 4: Multi-Asset Expansion
-
-```
-[ ] shortBTC (BTC/USD via Pyth)
-[ ] shortETH (ETH/USD via Pyth)
-[ ] shortGOLD (XAU/USD via Pyth)
-[ ] Governance token (SLS)
-[ ] Fee sharing with SLS stakers
-[ ] CEX listings for shortSOL
-[ ] Institutional API (market making)
-[ ] Solafon native Mini App
-```
+MintEvent, RedeemEvent, CircuitBreakerTriggered, AddLiquidityEvent, WithdrawFeesEvent, RemoveLiquidityEvent, ProposeAuthorityEvent, TransferAuthorityEvent, PauseEvent, UpdateFeeEvent, UpdateKEvent, FundingAccruedEvent, LpDepositEvent, LpWithdrawEvent, LpFeeClaimedEvent, UpdatePriceEvent, FundingDistributedEvent.
 
 ---
 
-## Приложение A: Ключевые константы
-
-```
-PRICE_PRECISION     = 1_000_000_000   (1e9)
-USDC_PRECISION      = 1_000_000       (1e6)
-SHORTSOL_DECIMALS   = 9
-DEFAULT_FEE_BPS     = 4               (0.04%)
-MAX_STALENESS_SEC   = 30
-MAX_CONFIDENCE_PCT  = 2
-MIN_VAULT_RATIO_BPS = 9500            (95%)
-MAX_PRICE_DEVIATION = 1500            (15%)
-```
-
-## Приложение B: Error Codes
-
-```rust
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Program is paused")]
-    Paused,
-    #[msg("Oracle price is stale")]
-    StaleOracle,
-    #[msg("Oracle confidence interval too wide")]
-    OracleConfidenceTooWide,
-    #[msg("Price deviation exceeds maximum")]
-    PriceDeviationTooHigh,
-    #[msg("Insufficient liquidity in vault")]
-    InsufficientLiquidity,
-    #[msg("Amount too small")]
-    AmountTooSmall,
-    #[msg("Circuit breaker triggered")]
-    CircuitBreaker,
-    #[msg("Rate limit exceeded")]
-    RateLimitExceeded,
-    #[msg("Price below minimum")]
-    PriceBelowMinimum,
-    #[msg("Arithmetic overflow")]
-    MathOverflow,
-}
-```
-
-## Приложение C: Events
-
-```rust
-#[event]
-pub struct MintEvent {
-    pub user: Pubkey,
-    pub usdc_in: u64,
-    pub tokens_out: u64,
-    pub sol_price: u64,
-    pub shortsol_price: u64,
-    pub fee: u64,
-    pub timestamp: i64,
-}
-
-#[event]
-pub struct RedeemEvent {
-    pub user: Pubkey,
-    pub tokens_in: u64,
-    pub usdc_out: u64,
-    pub sol_price: u64,
-    pub shortsol_price: u64,
-    pub fee: u64,
-    pub timestamp: i64,
-}
-
-#[event]
-pub struct CircuitBreakerTriggered {
-    pub vault_ratio_bps: u64,
-    pub timestamp: i64,
-}
-```
-
----
-
-*Holging — Solafon Ecosystem · Built on Solana*
+*Holging Protocol · Program CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX · Built on Solana*
