@@ -27,10 +27,20 @@ const ADMIN_WALLETS = (
   "66HBrTxNii7eFzSTgo8mUzsij3FM7xC2L9jE2H89sDYs,FLbSeegx6UqXx4doXbtoWWoKBxRoFLrBTmQcoyeXsxjq"
 ).split(",");
 
-// Default PublicKey (all zeros) — LP not initialized
 const DEFAULT_PUBKEY = "11111111111111111111111111111111";
 
 type Tab = "mint" | "redeem" | "lp" | "holging" | "holders" | "state" | "mcp" | "risk";
+
+const TAB_META: Record<Tab, { label: string; icon: string; primary?: boolean }> = {
+  mint:    { label: "Mint",    icon: "💰", primary: true },
+  redeem:  { label: "Redeem",  icon: "🔄", primary: true },
+  lp:      { label: "LP",      icon: "💧", primary: true },
+  holging: { label: "Holging", icon: "📊", primary: true },
+  holders: { label: "Holders", icon: "👥" },
+  state:   { label: "State",   icon: "🔍" },
+  mcp:     { label: "API",     icon: "⚡" },
+  risk:    { label: "Risk",    icon: "🛡️" },
+};
 
 function App() {
   const { connected, publicKey } = useWallet();
@@ -38,6 +48,7 @@ function App() {
   const { pool, error: poolError } = usePool(selectedPoolId);
   const { solPriceUsd } = usePythPrice(POOLS[selectedPoolId]?.feedId);
   const [tab, setTab] = useState<Tab>("mint");
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const selectedPool = POOLS[selectedPoolId];
   const lpInitialized = pool?.lpMint && pool.lpMint !== "" && pool.lpMint !== DEFAULT_PUBKEY;
@@ -47,135 +58,172 @@ function App() {
     (walletAddr && ADMIN_WALLETS.includes(walletAddr)) ||
     (pool && walletAddr && pool.authority === walletAddr);
 
+  const visibleTabs: Tab[] = [
+    "mint", "redeem",
+    ...(lpInitialized ? ["lp" as Tab] : []),
+    "holging", "holders", "state", "mcp",
+    ...(isAdmin ? ["risk" as Tab] : []),
+  ];
+
+  // Primary tabs for bottom nav (mobile)
+  const primaryTabs: Tab[] = ["mint", "redeem", ...(lpInitialized ? ["lp" as Tab] : []), "holging"];
+  const secondaryTabs = visibleTabs.filter(t => !primaryTabs.includes(t));
+
   return (
     <div className="app">
-      <header>
+      {/* ── Header ──────────────────────────────────────────── */}
+      <header className="header">
         <div className="header-left">
           <h1>Holging</h1>
           <span className="tagline">Tokenized Hedge Protocol</span>
         </div>
-        <WalletMultiButton />
-      </header>
 
-      <BurnerFunder />
-
-      <main>
-        {/* Pool Selector */}
-        <div className="pool-selector">
+        <div className="header-pools">
           {POOL_IDS.map((id) => (
             <button
               key={id}
-              className={`pool-btn ${selectedPoolId === id ? "active" : ""}`}
+              className={`pool-chip ${selectedPoolId === id ? "active" : ""}`}
               onClick={() => setSelectedPoolId(id)}
             >
-              <span className="pool-icon">{POOLS[id].icon}</span>
-              <span className="pool-name">{POOLS[id].name}</span>
+              <span className="pool-chip-icon">{POOLS[id].icon}</span>
+              <span className="pool-chip-name">{POOLS[id].name}</span>
             </button>
           ))}
         </div>
 
-        <PriceDisplay poolId={selectedPoolId} />
+        <div className="header-right">
+          <span className="network-badge">Devnet</span>
+          <WalletMultiButton />
+        </div>
+      </header>
 
-        {connected && <PositionCard poolId={selectedPoolId} />}
+      <BurnerFunder />
 
-        {connected && <PortfolioView usdcMint={USDC_MINT} poolId={selectedPoolId} />}
+      {/* ── Main Layout ─────────────────────────────────────── */}
+      <div className="layout">
+        {/* ── Sidebar (desktop) ──────────────────────────────── */}
+        <aside className="sidebar">
+          <PriceDisplay poolId={selectedPoolId} />
 
-        <div className="tabs">
-          <button
-            className={tab === "mint" ? "active" : ""}
-            onClick={() => setTab("mint")}
-          >
-            Mint
-          </button>
-          <button
-            className={tab === "redeem" ? "active" : ""}
-            onClick={() => setTab("redeem")}
-          >
-            Redeem
-          </button>
-          {lpInitialized && (
-            <button
-              className={tab === "lp" ? "active" : ""}
-              onClick={() => setTab("lp")}
-            >
-              LP
-            </button>
+          {connected && <PositionCard poolId={selectedPoolId} />}
+          {connected && <PortfolioView usdcMint={USDC_MINT} poolId={selectedPoolId} />}
+
+          <div className="sidebar-links">
+            <a href="https://github.com/holging/holging" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="https://github.com/holging/holging/tree/main/docs" target="_blank" rel="noopener noreferrer">Docs</a>
+            <a href="https://api.holging.com" target="_blank" rel="noopener noreferrer">API</a>
+          </div>
+        </aside>
+
+        {/* ── Content ────────────────────────────────────────── */}
+        <main className="content">
+          {/* Mobile-only: price row + pool selector are in header */}
+          <div className="mobile-prices">
+            <PriceDisplay poolId={selectedPoolId} />
+          </div>
+
+          {connected && (
+            <div className="mobile-position">
+              <PositionCard poolId={selectedPoolId} />
+              <PortfolioView usdcMint={USDC_MINT} poolId={selectedPoolId} />
+            </div>
           )}
+
+          {/* Desktop/Tablet tab bar */}
+          <div className="tabs">
+            {visibleTabs.map((t) => (
+              <button
+                key={t}
+                className={tab === t ? "active" : ""}
+                onClick={() => setTab(t)}
+              >
+                {TAB_META[t].label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div className="tab-content">
+            {tab === "mint" && (
+              <>
+                <FaucetButton />
+                <MintForm usdcMint={USDC_MINT} poolId={selectedPoolId} />
+              </>
+            )}
+            {tab === "redeem" && <RedeemForm usdcMint={USDC_MINT} poolId={selectedPoolId} />}
+            {tab === "lp" && lpInitialized && (
+              <LpDashboard
+                pool={pool}
+                solPriceUsd={solPriceUsd ?? 0}
+                usdcMint={USDC_MINT_PK}
+                poolId={selectedPoolId}
+              />
+            )}
+            {tab === "holging" && <StrategyTerminal poolId={selectedPoolId} />}
+            {tab === "holders" && <TokenHolders poolId={selectedPoolId} />}
+            {tab === "state" && <StatePage poolId={selectedPoolId} />}
+            {tab === "mcp" && <McpPage />}
+            {tab === "risk" && isAdmin && <RiskDashboard poolId={selectedPoolId} />}
+
+            {poolError && selectedPoolId === DEFAULT_POOL_ID && (
+              <div className="info-banner">
+                Pool not initialized yet. Deploy to devnet and run initialize-pool script first.
+              </div>
+            )}
+            {poolError && selectedPoolId !== DEFAULT_POOL_ID && (
+              <div className="info-banner">
+                {selectedPool.name} pool not initialized yet on devnet.
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+
+      {/* ── Bottom Nav (mobile only) ────────────────────────── */}
+      <nav className="bottom-nav">
+        {primaryTabs.map((t) => (
           <button
-            className={tab === "holging" ? "active" : ""}
-            onClick={() => setTab("holging")}
+            key={t}
+            className={`bottom-nav-item ${tab === t ? "active" : ""}`}
+            onClick={() => { setTab(t); setMoreOpen(false); }}
           >
-            Holging
+            <span className="bottom-nav-icon">{TAB_META[t].icon}</span>
+            <span className="bottom-nav-label">{TAB_META[t].label}</span>
           </button>
+        ))}
+        <div className="bottom-nav-more-wrapper">
           <button
-            className={tab === "holders" ? "active" : ""}
-            onClick={() => setTab("holders")}
+            className={`bottom-nav-item ${secondaryTabs.includes(tab) ? "active" : ""}`}
+            onClick={() => setMoreOpen(!moreOpen)}
           >
-            Holders
+            <span className="bottom-nav-icon">⋯</span>
+            <span className="bottom-nav-label">More</span>
           </button>
-          <button
-            className={tab === "state" ? "active" : ""}
-            onClick={() => setTab("state")}
-          >
-            State
-          </button>
-          <button
-            className={tab === "mcp" ? "active" : ""}
-            onClick={() => setTab("mcp")}
-          >
-            API
-          </button>
-          {isAdmin && (
-            <button
-              className={tab === "risk" ? "active" : ""}
-              onClick={() => setTab("risk")}
-            >
-              Risk
-            </button>
+          {moreOpen && (
+            <div className="bottom-nav-sheet">
+              {secondaryTabs.map((t) => (
+                <button
+                  key={t}
+                  className={`bottom-nav-sheet-item ${tab === t ? "active" : ""}`}
+                  onClick={() => { setTab(t); setMoreOpen(false); }}
+                >
+                  <span>{TAB_META[t].icon}</span>
+                  <span>{TAB_META[t].label}</span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
+      </nav>
 
-        {tab === "mint" && (
-          <>
-            <FaucetButton />
-            <MintForm usdcMint={USDC_MINT} poolId={selectedPoolId} />
-          </>
-        )}
-        {tab === "redeem" && <RedeemForm usdcMint={USDC_MINT} poolId={selectedPoolId} />}
-        {tab === "lp" && lpInitialized && (
-          <LpDashboard
-            pool={pool}
-            solPriceUsd={solPriceUsd ?? 0}
-            usdcMint={USDC_MINT_PK}
-            poolId={selectedPoolId}
-          />
-        )}
-        {tab === "holging" && <StrategyTerminal poolId={selectedPoolId} />}
-        {tab === "holders" && <TokenHolders poolId={selectedPoolId} />}
-        {tab === "state" && <StatePage poolId={selectedPoolId} />}
-        {tab === "mcp" && <McpPage />}
-        {tab === "risk" && isAdmin && <RiskDashboard poolId={selectedPoolId} />}
-
-        {poolError && selectedPoolId === DEFAULT_POOL_ID && (
-          <div className="info-banner">
-            Pool not initialized yet. Deploy to devnet and run initialize-pool
-            script first.
-          </div>
-        )}
-        {poolError && selectedPoolId !== DEFAULT_POOL_ID && (
-          <div className="info-banner">
-            {selectedPool.name} pool not initialized yet on devnet.
-          </div>
-        )}
-      </main>
-
-      <footer>
+      {/* ── Footer (desktop/tablet only) ────────────────────── */}
+      <footer className="footer">
         <p>
           Holging Protocol — Devnet
           <span className="footer-sep">·</span>
           <a href="https://github.com/holging" target="_blank" rel="noopener noreferrer" className="footer-link">GitHub</a>
           <span className="footer-sep">·</span>
-          <a href="https://github.com/holging/docs" target="_blank" rel="noopener noreferrer" className="footer-link">Docs</a>
+          <a href="https://github.com/holging/holging/tree/main/docs" target="_blank" rel="noopener noreferrer" className="footer-link">Docs</a>
         </p>
       </footer>
     </div>
