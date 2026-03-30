@@ -1,17 +1,17 @@
-# Holging API — Transaction Builder for AI Agents
+# Holging API — Конструктор транзакций для AI-агентов
 
-> **Your agent signs. We build. Zero key exposure.**
+> **Ваш агент подписывает. Мы строим. Приватные ключи не покидают вашу машину.**
 >
 > `https://api.holging.com`
 
-Holging API builds unsigned Solana transactions for your agent. You send a wallet address and parameters — we return a base64-encoded transaction ready to sign. Your private key never leaves your machine.
+Holging API строит неподписанные Solana-транзакции для вашего агента. Вы отправляете адрес кошелька и параметры — мы возвращаем base64-транзакцию готовую к подписи. Ваш приватный ключ никогда не покидает вашу машину.
 
 ---
 
-## How It Works
+## Как это работает
 
 ```
-Your Agent                          Holging API
+Ваш агент                           Holging API
   │                                      │
   │  GET /prices                         │
   │─────────────────────────────────────>│
@@ -26,29 +26,29 @@ Your Agent                          Holging API
   │    expectedTokens: 1.17 }            │
   │<─────────────────────────────────────│
   │                                      │
-  │  Agent signs tx with own keypair     │
+  │  Агент подписывает СВОИМ ключом      │
   │  sendRawTransaction ──────────────>  Solana
 ```
 
 ---
 
-## Base URL
+## Базовый URL
 
 ```
 https://api.holging.com
 ```
 
-Network: Solana Devnet
+Сеть: Solana Devnet
 
 ---
 
-## Endpoints
+## Эндпоинты
 
-### Read (GET, free, no transaction)
+### Чтение (GET, бесплатно, без транзакций)
 
 #### `GET /prices`
 
-All 4 pools in one call.
+Цены всех 4 пулов одним вызовом.
 
 ```bash
 curl https://api.holging.com/prices
@@ -67,7 +67,7 @@ curl https://api.holging.com/prices
 
 #### `GET /pool/:id`
 
-Detailed pool state. IDs: `sol`, `tsla`, `spy`, `aapl`.
+Детальное состояние пула. ID: `sol`, `tsla`, `spy`, `aapl`.
 
 ```bash
 curl https://api.holging.com/pool/sol
@@ -94,15 +94,15 @@ curl https://api.holging.com/pool/sol
 
 #### `GET /position?wallet=...&pool=sol`
 
-Wallet balances for a specific pool.
+Баланс кошелька для конкретного пула.
 
 ```bash
-curl "https://api.holging.com/position?wallet=YOUR_PUBKEY&pool=sol"
+curl "https://api.holging.com/position?wallet=ВАШ_КЛЮЧ&pool=sol"
 ```
 
 ```json
 {
-  "wallet": "YOUR_PUBKEY",
+  "wallet": "ВАШ_КЛЮЧ",
   "poolId": "sol",
   "sol": 3.57,
   "usdc": 5000.00,
@@ -112,7 +112,7 @@ curl "https://api.holging.com/position?wallet=YOUR_PUBKEY&pool=sol"
 
 #### `GET /simulate/mint?amount=100&pool=sol`
 
-Preview a mint without executing.
+Предпросмотр минта без исполнения.
 
 ```bash
 curl "https://api.holging.com/simulate/mint?amount=100&pool=sol"
@@ -132,7 +132,7 @@ curl "https://api.holging.com/simulate/mint?amount=100&pool=sol"
 
 #### `GET /simulate/redeem?amount=1.5&pool=sol`
 
-Preview a redeem without executing.
+Предпросмотр вывода без исполнения.
 
 ```bash
 curl "https://api.holging.com/simulate/redeem?amount=1.5&pool=sol"
@@ -140,18 +140,18 @@ curl "https://api.holging.com/simulate/redeem?amount=1.5&pool=sol"
 
 ---
 
-### Build Transactions (POST, returns unsigned tx)
+### Построение транзакций (POST, возвращает неподписанную tx)
 
-All POST endpoints return `{ tx: "base64...", ... }`. Decode the `tx` field, sign it with your keypair, and submit via `sendRawTransaction`.
+Все POST-эндпоинты возвращают `{ tx: "base64...", ... }`. Декодируйте поле `tx`, подпишите своим ключом, отправьте через `sendRawTransaction`.
 
 #### `POST /build/mint`
 
-Build an unsigned mint transaction (USDC → inverse tokens).
+Построить неподписанную транзакцию минта (USDC → инверсные токены).
 
 ```bash
 curl -X POST https://api.holging.com/build/mint \
   -H "Content-Type: application/json" \
-  -d '{ "wallet": "YOUR_PUBKEY", "amount": 100, "pool": "sol" }'
+  -d '{ "wallet": "ВАШ_КЛЮЧ", "amount": 100, "pool": "sol" }'
 ```
 
 ```json
@@ -160,65 +160,65 @@ curl -X POST https://api.holging.com/build/mint \
   "action": "mint",
   "expectedTokens": 1.1685,
   "fee": "$0.04",
-  "message": "Sign and send this transaction to mint ~1.1685 shortSOL"
+  "message": "Подпишите и отправьте транзакцию для минта ~1.1685 shortSOL"
 }
 ```
 
 #### `POST /build/redeem`
 
-Build an unsigned redeem transaction (inverse tokens → USDC).
+Построить неподписанную транзакцию вывода (инверсные токены → USDC).
 
 ```bash
 curl -X POST https://api.holging.com/build/redeem \
   -H "Content-Type: application/json" \
-  -d '{ "wallet": "YOUR_PUBKEY", "amount": 1.5, "pool": "sol" }'
+  -d '{ "wallet": "ВАШ_КЛЮЧ", "amount": 1.5, "pool": "sol" }'
 ```
 
 #### `POST /build/claim_usdc`
 
-Build an unsigned transaction to claim 5,000 devnet USDC from the faucet.
+Построить неподписанную транзакцию получения 5,000 devnet USDC из крана.
 
 ```bash
 curl -X POST https://api.holging.com/build/claim_usdc \
   -H "Content-Type: application/json" \
-  -d '{ "wallet": "YOUR_PUBKEY" }'
+  -d '{ "wallet": "ВАШ_КЛЮЧ" }'
 ```
 
 #### `POST /build/add_liquidity`
 
-Build an unsigned LP deposit transaction. Minimum $100 USDC.
+Построить неподписанную транзакцию LP-депозита. Минимум $100 USDC.
 
 ```bash
 curl -X POST https://api.holging.com/build/add_liquidity \
   -H "Content-Type: application/json" \
-  -d '{ "wallet": "YOUR_PUBKEY", "amount": 500, "pool": "sol" }'
+  -d '{ "wallet": "ВАШ_КЛЮЧ", "amount": 500, "pool": "sol" }'
 ```
 
 #### `POST /build/remove_liquidity`
 
-Build an unsigned LP withdrawal transaction.
+Построить неподписанную транзакцию вывода LP.
 
 ```bash
 curl -X POST https://api.holging.com/build/remove_liquidity \
   -H "Content-Type: application/json" \
-  -d '{ "wallet": "YOUR_PUBKEY", "lp_shares": 1000000, "pool": "sol" }'
+  -d '{ "wallet": "ВАШ_КЛЮЧ", "lp_shares": 1000000, "pool": "sol" }'
 ```
 
 #### `POST /build/claim_lp_fees`
 
-Build an unsigned LP fee claim transaction.
+Построить неподписанную транзакцию сбора LP-комиссий.
 
 ```bash
 curl -X POST https://api.holging.com/build/claim_lp_fees \
   -H "Content-Type: application/json" \
-  -d '{ "wallet": "YOUR_PUBKEY", "pool": "sol" }'
+  -d '{ "wallet": "ВАШ_КЛЮЧ", "pool": "sol" }'
 ```
 
 ---
 
-## Signing & Submitting Transactions
+## Подпись и отправка транзакций
 
-Every `/build/*` endpoint returns a `tx` field containing a base64-encoded unsigned Solana transaction. To execute it:
+Каждый `/build/*` эндпоинт возвращает поле `tx` с base64-закодированной неподписанной Solana-транзакцией. Чтобы выполнить:
 
 ### TypeScript
 
@@ -231,7 +231,7 @@ const keypair = Keypair.fromSecretKey(
   Uint8Array.from(JSON.parse(fs.readFileSync("wallet.json", "utf-8")))
 );
 
-// 1. Get unsigned tx from API
+// 1. Получить неподписанную tx от API
 const res = await fetch("https://api.holging.com/build/mint", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -239,14 +239,14 @@ const res = await fetch("https://api.holging.com/build/mint", {
 });
 const { tx } = await res.json();
 
-// 2. Decode and sign
+// 2. Декодировать и подписать локально
 const transaction = Transaction.from(Buffer.from(tx, "base64"));
 transaction.sign(keypair);
 
-// 3. Submit
+// 3. Отправить в Solana
 const sig = await conn.sendRawTransaction(transaction.serialize());
 await conn.confirmTransaction(sig, "confirmed");
-console.log("Done:", sig);
+console.log("Готово:", sig);
 ```
 
 ### Python
@@ -254,52 +254,51 @@ console.log("Done:", sig);
 ```python
 import json, base64, requests
 from solders.keypair import Keypair
-from solders.transaction import Transaction
 from solana.rpc.api import Client
+from solana.transaction import Transaction
 
 client = Client("https://api.devnet.solana.com")
 keypair = Keypair.from_json(open("wallet.json").read())
 
-# 1. Get unsigned tx
+# 1. Получить неподписанную tx
 resp = requests.post("https://api.holging.com/build/mint", json={
     "wallet": str(keypair.pubkey()), "amount": 100
 })
 tx_b64 = resp.json()["tx"]
 
-# 2. Decode and sign
-tx_bytes = base64.b64decode(tx_b64)
-tx = Transaction.from_bytes(tx_bytes)
-signed = keypair.sign_message(tx.message_data())
+# 2. Декодировать и подписать
+tx = Transaction.deserialize(base64.b64decode(tx_b64))
+tx.sign(keypair)
 
-# 3. Submit
-result = client.send_raw_transaction(bytes(tx))
-print("Done:", result.value)
+# 3. Отправить
+result = client.send_raw_transaction(bytes(tx.serialize()))
+print("Готово:", result.value)
 ```
 
 ---
 
-## Pools
+## Пулы
 
-| ID | Asset | Inverse Token | Price Model |
-|----|-------|---------------|-------------|
-| `sol` | SOL | shortSOL | k / SOL_price |
-| `tsla` | TSLA | shortTSLA | k / TSLA_price |
-| `spy` | SPY | shortSPY | k / SPY_price |
-| `aapl` | AAPL | shortAAPL | k / AAPL_price |
+| ID | Актив | Инверсный токен | Модель цены |
+|----|-------|-----------------|-------------|
+| `sol` | SOL | shortSOL | k / цена_SOL |
+| `tsla` | TSLA | shortTSLA | k / цена_TSLA |
+| `spy` | SPY | shortSPY | k / цена_SPY |
+| `aapl` | AAPL | shortAAPL | k / цена_AAPL |
 
-When asset goes up → inverse token goes down (and vice versa).
-No margin. No liquidation. No expiration.
-
----
-
-## Rate Limits
-
-- 60 requests per minute per IP
-- Burst: 20 requests
+Когда актив растёт → инверсный токен падает (и наоборот).
+Без маржи. Без ликвидации. Без экспирации.
 
 ---
 
-## Errors
+## Лимиты
+
+- 60 запросов в минуту на IP
+- Burst: 20 запросов
+
+---
+
+## Ошибки
 
 ```json
 { "error": "Missing ?wallet=..." }
@@ -309,13 +308,9 @@ No margin. No liquidation. No expiration.
 
 ---
 
-## Links
+## Ссылки
 
 - **API**: https://api.holging.com
-- **Frontend**: https://holging.com
+- **Фронтенд**: https://holging.com
 - **GitHub**: https://github.com/holging/holging
 - **Program ID**: `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
-
----
-
-🇷🇺 [Документация на русском](../docs/ru/API.md)
