@@ -2374,6 +2374,35 @@ header.header {
   .footer {
     display: none; /* hidden on mobile — bottom nav replaces it */
   }
+
+  /* ── State page: risk sections on mobile ── */
+  .risk-section {
+    padding: var(--space-3);
+  }
+
+  .risk-row {
+    font-size: var(--text-xs);
+    gap: var(--space-2);
+  }
+
+  .risk-row span:last-child {
+    text-align: right;
+    word-break: break-word;
+    max-width: 55%;
+  }
+
+  /* Stress test table: more compact on mobile */
+  .stress-header,
+  .stress-row {
+    font-size: 11px;
+    gap: var(--space-1);
+  }
+
+  .stress-header span,
+  .stress-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* ── Tablet (≥640px) ───────────────────────────────────────────────────────── */
@@ -2459,6 +2488,11 @@ header.header {
 
   .content {
     padding-bottom: var(--space-6);
+  }
+
+  /* Constrain data-dense pages to readable width */
+  .content .form-card {
+    max-width: 860px;
   }
 
   .form-card {
