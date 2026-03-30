@@ -31,3 +31,4 @@ skills-lock.json
 
 # Local Netlify folder
 .netlify
+agents/
