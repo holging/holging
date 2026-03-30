@@ -9,6 +9,7 @@ pub mod mint;
 pub mod pause;
 pub mod redeem;
 pub mod remove_liquidity;
+pub mod set_feed_id;
 pub mod transfer_authority;
 pub mod update_fee;
 pub mod update_k;
@@ -39,6 +40,8 @@ pub use pause::*;
 pub use redeem::*;
 #[allow(ambiguous_glob_reexports)]
 pub use remove_liquidity::*;
+#[allow(ambiguous_glob_reexports)]
+pub use set_feed_id::*;
 #[allow(ambiguous_glob_reexports)]
 pub use transfer_authority::*;
 #[allow(ambiguous_glob_reexports)]

@@ -1437,6 +1437,64 @@
       ]
     },
     {
+      "name": "set_feed_id",
+      "discriminator": [
+        67,
+        50,
+        245,
+        1,
+        49,
+        123,
+        14,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pool_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool_state"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_id",
+          "type": "string"
+        },
+        {
+          "name": "pyth_feed_id",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "set_pause",
       "discriminator": [
         63,

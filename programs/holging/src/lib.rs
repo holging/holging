@@ -140,4 +140,12 @@ pub mod holging {
     ) -> Result<()> {
         instructions::update_min_lp_deposit::handler(ctx, pool_id, new_min_lp_deposit)
     }
+
+    pub fn set_feed_id(
+        ctx: Context<SetFeedId>,
+        pool_id: String,
+        pyth_feed_id: [u8; 64],
+    ) -> Result<()> {
+        instructions::set_feed_id::handler(ctx, pool_id, pyth_feed_id)
+    }
 }
