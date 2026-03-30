@@ -16,9 +16,6 @@ dist
 wallet.json
 id.json
 
-# Local Netlify folder
-.netlify
-
 # Claude/OMC internal
 .claude/
 .omc/

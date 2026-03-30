@@ -287,8 +287,7 @@ funding_apy = 1 − (1 − 10/10000)^365 ≈ 30.59%
 - `tsconfig.json` — ES2022 module
 - `docs/LP_GUIDE.md` — новый
 - `docs/VAULT_ANALYTICS.md` — новый
-- `app/.netlify/`, `app/.vercel/` — удалены
-- `.omc/` — Netlify/Vercel упоминания исправлены
+- `.omc/` — hosting упоминания исправлены
 
 **Рекомендуемый коммит:**
 ```bash
@@ -305,7 +304,7 @@ git commit -m "security: close HIGH-01,02 + MEDIUM-01-05 + remove migrate_pool +
 - INFO-03: feature-flagged MAX_STALENESS_SECS (86400 devnet, 30 mainnet)
 - tests: ESM fix, IDL updated to 19 instructions/21 errors/17 events
 - docs: LP_GUIDE.md, VAULT_ANALYTICS.md
-- cleanup: removed Netlify/Vercel artifacts"
+- cleanup: removed legacy hosting artifacts"
 ```
 
 ---
