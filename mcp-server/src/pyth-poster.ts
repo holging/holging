@@ -5,7 +5,7 @@
  * Returns the PriceUpdateV2 account pubkey on-chain.
  */
 import { PublicKey } from "@solana/web3.js";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
 
@@ -15,8 +15,10 @@ const APP_DIR = path.resolve(__dirname, "../../app");
 
 export async function postPriceAndGetAccount(poolId: string): Promise<PublicKey> {
   try {
-    const result = execSync(
-      `node "${SCRIPT_PATH}" ${poolId}`,
+    // Use execFileSync to avoid shell dependency (ENOENT /bin/sh in sandboxed envs)
+    const result = execFileSync(
+      process.execPath,   // absolute path to current node binary
+      [SCRIPT_PATH, poolId],
       {
         timeout: 45000,
         cwd: APP_DIR,

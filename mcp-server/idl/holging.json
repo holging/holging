@@ -960,60 +960,6 @@
       ]
     },
     {
-      "name": "migrate_pool",
-      "discriminator": [
-        55,
-        170,
-        171,
-        123,
-        210,
-        69,
-        39,
-        172
-      ],
-      "accounts": [
-        {
-          "name": "pool_state",
-          "docs": [
-            "Не используем Account<PoolState> т.к. аккаунт может быть старого размера."
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "pool_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "pool_id",
-          "type": "string"
-        }
-      ]
-    },
-    {
       "name": "mint",
       "discriminator": [
         51,
@@ -2204,6 +2150,19 @@
       ]
     },
     {
+      "name": "UpdateMinLpDepositEvent",
+      "discriminator": [
+        82,
+        122,
+        161,
+        106,
+        143,
+        206,
+        63,
+        238
+      ]
+    },
+    {
       "name": "WithdrawFeesEvent",
       "discriminator": [
         236,
@@ -2310,11 +2269,16 @@
     },
     {
       "code": 6018,
+      "name": "FundingConfigRequired",
+      "msg": "FundingConfig exists but was not passed — pass funding_config account"
+    },
+    {
+      "code": 6019,
       "name": "NoFeesToClaim",
       "msg": "No fees to claim"
     },
     {
-      "code": 6019,
+      "code": 6020,
       "name": "InsufficientLpShares",
       "msg": "Insufficient LP shares"
     }
@@ -3026,6 +2990,26 @@
           {
             "name": "new_k",
             "type": "u128"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdateMinLpDepositEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "old_min_lp_deposit",
+            "type": "u64"
+          },
+          {
+            "name": "new_min_lp_deposit",
+            "type": "u64"
           },
           {
             "name": "authority",

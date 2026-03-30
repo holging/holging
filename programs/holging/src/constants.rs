@@ -43,10 +43,11 @@ use solana_program::pubkey;
 pub const USDC_MINT_PUBKEY: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
 /// Maximum oracle price staleness in seconds
-/// 86400s on devnet (stock feeds only update during US market hours)
+/// 259200s (3 days) on devnet — stock feeds (TSLA, SPY, AAPL) only update
+/// during US market hours and go stale over weekends/holidays
 /// Tighten to 30s for mainnet SOL pools
 #[cfg(feature = "devnet")]
-pub const MAX_STALENESS_SECS: u64 = 86400;
+pub const MAX_STALENESS_SECS: u64 = 259200;
 
 #[cfg(not(feature = "devnet"))]
 pub const MAX_STALENESS_SECS: u64 = 30;
