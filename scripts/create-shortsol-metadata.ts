@@ -44,7 +44,7 @@ async function main() {
   anchor.setProvider(provider);
 
   // Load IDL & program
-  const idlPath = path.resolve(__dirname, "../target/idl/solshort.json");
+  const idlPath = path.resolve(__dirname, "../target/idl/holging.json");
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
   const programId = new PublicKey(idl.address);
   const program = new anchor.Program(idl, provider);

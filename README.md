@@ -186,7 +186,7 @@ Open [localhost:5173](http://localhost:5173), connect wallet, and mint shortSOL.
 ## Project Structure
 
 ```
-programs/solshort/src/
+programs/holging/src/
   ├── lib.rs              — program entry
   ├── state.rs            — PoolState + FundingConfig accounts
   ├── constants.rs        — math constants, oracle config

@@ -173,7 +173,7 @@ async function main() {
   });
   anchor.setProvider(provider);
 
-  const idlPath = path.resolve(__dirname, "../target/idl/solshort.json");
+  const idlPath = path.resolve(__dirname, "../target/idl/holging.json");
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
   const program = new anchor.Program(idl, provider);
   const programId = new PublicKey(idl.address);

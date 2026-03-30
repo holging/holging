@@ -4,7 +4,7 @@
 |---|---|
 | **Protocol** | Holging -- Tokenized Inverse SOL Exposure on Solana |
 | **Commit** | `main` branch, 2026-03-28 snapshot |
-| **Scope** | `programs/solshort/src/**` (19 Rust files, ~1 600 LoC) + `scripts/keeper.ts` |
+| **Scope** | `programs/holging/src/**` (19 Rust files, ~1 600 LoC) + `scripts/keeper.ts` |
 | **Framework** | Anchor 0.32.1, Pyth Solana Receiver SDK 1.1.0, SPL Token |
 | **Methodology** | Manual line-by-line review, OWASP / SWC / OtterSec checklist |
 | **Auditor** | Automated Security Reviewer (Claude Opus 4.6) |

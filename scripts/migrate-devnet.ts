@@ -12,7 +12,7 @@ async function main() {
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   anchor.setProvider(provider);
 
-  const idl = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../target/idl/solshort.json"), "utf-8"));
+  const idl = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../target/idl/holging.json"), "utf-8"));
   const program = new anchor.Program(idl, provider);
   const programId = new PublicKey(idl.address);
 

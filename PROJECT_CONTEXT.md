@@ -16,7 +16,7 @@
 ## 2. Структура проекта
 
 ```
-solshort/
+holging/
 ├── programs/
 │   ├── holging/src/           # Основная Solana-программа (Anchor 0.32.1)
 │   │   ├── lib.rs             # Entry point — 19 инструкций
@@ -79,7 +79,7 @@ solshort/
 │       └── idl/               # Anchor IDL
 │
 ├── tests/
-│   ├── solshort.ts            # 28 unit + 9 integration тестов
+│   ├── holging.ts            # 28 unit + 9 integration тестов
 │   └── fixtures/
 │       └── mock-pyth-price-update.json  # Mock Pyth oracle ($170 SOL)
 │
@@ -119,8 +119,8 @@ solshort/
 ├── README.md                  # Основной README
 ├── PITCH.md                   # Питч (RU)
 ├── PITCH_EN.md                # Питч (EN)
-├── SOLSHORT_MATH.md           # Математическая архитектура
-├── solshort_math_architecture.md  # Расширенная мат. архитектура
+├── HOLGING_MATH.md           # Математическая архитектура
+├── holging_math_architecture.md  # Расширенная мат. архитектура
 ├── Anchor.toml                # Anchor конфиг (devnet, test validator)
 ├── Cargo.toml                 # Rust workspace
 ├── package.json               # Node dependencies
@@ -283,7 +283,7 @@ funding_apy = 1 − (1 − 10/10000)^365 ≈ 30.59%
 **51 файл изменён.** Основные:
 
 - `programs/holging/` — все security fixes
-- `tests/solshort.ts` — ESM fix + IDL обновление
+- `tests/holging.ts` — ESM fix + IDL обновление
 - `tsconfig.json` — ES2022 module
 - `docs/LP_GUIDE.md` — новый
 - `docs/VAULT_ANALYTICS.md` — новый
@@ -334,7 +334,7 @@ git commit -m "security: close HIGH-01,02 + MEDIUM-01-05 + remove migrate_pool +
 
 ```bash
 # Рабочая директория
-cd $HOME/Movies/Movavi\ Video\ Editor/Projects/solshort
+cd ~/Projects/holging
 
 # Прочитать контекст
 cat PROJECT_CONTEXT.md

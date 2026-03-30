@@ -27,7 +27,7 @@ const MINT_AUTH_SEED = Buffer.from("mint_auth");
 const SHORTSOL_MINT_SEED = Buffer.from("shortsol_mint");
 const PRICE_PRECISION = new BN(1_000_000_000);
 
-describe("solshort", () => {
+describe("holging", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 

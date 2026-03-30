@@ -1,7 +1,7 @@
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
-import IDL from "../idl/solshort.json";
+import IDL from "../idl/holging.json";
 import { DEFAULT_POOL_ID } from "../config/pools";
 
 export const PROGRAM_ID = new PublicKey(IDL.address);

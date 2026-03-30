@@ -22,7 +22,7 @@ async function main() {
   const kp = Keypair.fromSecretKey(Uint8Array.from(rawKey));
   const wallet = new anchor.Wallet(kp);
   const provider = new anchor.AnchorProvider(conn, wallet, { commitment: "confirmed" });
-  const idl = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../target/idl/solshort.json"), "utf-8"));
+  const idl = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../target/idl/holging.json"), "utf-8"));
   const program = new anchor.Program(idl, provider);
 
   const [poolPda] = PublicKey.findProgramAddressSync([Buffer.from("pool"), Buffer.from(POOL_ID)], PROGRAM_ID);

@@ -66,7 +66,7 @@ Unlike perpetual futures or margin accounts, Holging holders:
 
 ## 3. Unit Economics
 
-All numbers derived directly from `programs/solshort/src/constants.rs` and `fees.rs`.
+All numbers derived directly from `programs/holging/src/constants.rs` and `fees.rs`.
 
 ### 3.1 Base Fee
 

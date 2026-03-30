@@ -45,6 +45,6 @@ All theorems should check without errors.
 
 ## Relationship to the protocol
 
-These proofs cover the mathematical model, not the on-chain Rust implementation. The Rust program at `programs/solshort/src/` implements the same model with integer arithmetic (fixed-point, 1e9 precision). The proofs establish that the underlying math is sound.
+These proofs cover the mathematical model, not the on-chain Rust implementation. The Rust program at `programs/holging/src/` implements the same model with integer arithmetic (fixed-point, 1e9 precision). The proofs establish that the underlying math is sound.
 
 **Program ID:** `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX` (Solana Devnet)
