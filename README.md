@@ -1,206 +1,140 @@
 # Holging — Tokenized Inverse Exposure on Solana
 
-[![GitHub](https://img.shields.io/badge/github-holging%2Fholging-blue)](https://github.com/holging/holging)
+[🇬🇧 English](#english) · [🇷🇺 Русский](#русский) · [🇨🇳 中文](#中文)
 
-Holging lets you short SOL with a single click. Deposit USDC, receive **shortSOL** — an SPL token whose price moves inversely to SOL using a multiplicative (1/x) model with zero volatility decay, zero path dependency, and zero liquidation risk.
+---
 
-**Live demo:** [holging.com](https://holging.com)
-**Program ID:** `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
-**Network:** Solana Devnet
+<a id="english"></a>
+## 🇬🇧 English
 
-## How It Works
+**Inverse ETF for Solana.** One token, one click, zero liquidations.
+
+Deposit USDC → receive **shortSOL** — an SPL token whose price moves inversely to SOL. No margin, no liquidation, no expiration.
 
 ```
 shortSOL_price = k / SOL_price
 ```
 
-- SOL goes up → shortSOL goes down
-- SOL goes down → shortSOL goes up
-- No margin, no liquidation, no expiration
-- Token lives in your regular wallet
+**Holging Strategy:** 50% SOL + 50% shortSOL = mathematically guaranteed profit from any price movement. Proven in Lean 4.
 
-### Holging Strategy (Hold + Hedge)
+### Links
 
-A 50/50 portfolio of SOL + shortSOL is **mathematically guaranteed to be profitable** in any direction (before fees), by the AM-GM inequality:
+| | |
+|---|---|
+| 🌐 **App** | [holging.com](https://holging.com) |
+| ⚡ **API** | [api.holging.com](https://api.holging.com) |
+| 📦 **Program** | `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX` |
+| 🔗 **Network** | Solana Devnet |
+
+### Documentation
+
+| Document | Description |
+|----------|-------------|
+| [API Reference](docs/en/API.md) | Transaction Builder API for AI agents |
+| [Pitch](docs/en/PITCH.md) | Investor pitch |
+| [Strategy Guide](docs/en/STRATEGY.md) | Holging strategy explained |
+| [Token Spec](docs/en/TOKEN.md) | shortSOL token specification |
+| [LP Guide](docs/en/LP.md) | Liquidity provider guide |
+| [Mint Rules](docs/en/MINT_RULES.md) | Token minting specification |
+| [Math](docs/en/MATH.md) | Mathematical architecture |
+| [Security](docs/en/SECURITY.md) | Security audit report |
+| [Mainnet Checklist](docs/en/MAINNET.md) | Mainnet readiness |
+
+### Agent Examples
+
+```bash
+# TypeScript
+npx ts-node examples/agent-typescript.ts
+
+# Python
+python examples/agent-python.py
+```
+
+---
+
+<a id="русский"></a>
+## 🇷🇺 Русский
+
+**Обратный ETF для Solana.** Один токен, один клик, ноль ликвидаций.
+
+Депозит USDC → получите **shortSOL** — SPL-токен, цена которого движется обратно SOL. Без маржи, без ликвидации, без срока истечения.
 
 ```
-P&L = (x - 1)² / (2x)    where x = SOL price multiplier
+цена_shortSOL = k / цена_SOL
 ```
 
-| SOL Move | Holging P&L | On $10,000 |
-|----------|-------------|------------|
-| −50%     | +25.0%      | +$2,500    |
-| −25%     | +4.2%       | +$417      |
-| 0%       | 0.0%        | $0         |
-| +25%     | +2.5%       | +$250      |
-| +50%     | +8.3%       | +$833      |
-| +100%    | +25.0%      | +$2,500    |
+**Стратегия Holging:** 50% SOL + 50% shortSOL = математически гарантированная прибыль от любого движения цены. Доказано в Lean 4.
 
-Break-even: SOL moves ±4% (to cover 0.08% roundtrip fee).
+### Ссылки
+
+| | |
+|---|---|
+| 🌐 **Приложение** | [holging.com](https://holging.com) |
+| ⚡ **API** | [api.holging.com](https://api.holging.com) |
+| 📦 **Программа** | `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX` |
+| 🔗 **Сеть** | Solana Devnet |
+
+### Документация
+
+| Документ | Описание |
+|----------|----------|
+| [Справка API](docs/ru/API.md) | Transaction Builder API для AI-агентов |
+| [Питч](docs/ru/PITCH.md) | Инвестиционная презентация |
+| [Стратегия](docs/ru/STRATEGY.md) | Стратегия Holging |
+| [Спецификация токена](docs/ru/TOKEN.md) | Спецификация shortSOL |
+| [LP гайд](docs/ru/LP.md) | Руководство LP-провайдера |
+| [Правила минта](docs/ru/MINT_RULES.md) | Спецификация минта токенов |
+
+---
+
+<a id="中文"></a>
+## 🇨🇳 中文
+
+**Solana 的反向 ETF。** 一个代币，一键操作，零清算风险。
+
+存入 USDC → 获得 **shortSOL** — 价格与 SOL 反向变动的 SPL 代币。无保证金、无清算、无到期。
+
+```
+shortSOL_price = k / SOL_price
+```
+
+**Holging 策略：** 50% SOL + 50% shortSOL = 数学保证的任何价格变动利润。已在 Lean 4 中证明。
+
+### 链接
+
+| | |
+|---|---|
+| 🌐 **应用** | [holging.com](https://holging.com) |
+| ⚡ **API** | [api.holging.com](https://api.holging.com) |
+| 📦 **程序** | `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX` |
+| 🔗 **网络** | Solana Devnet |
+
+### 文档
+
+| 文档 | 描述 |
+|------|------|
+| [API 参考](docs/zh/API.md) | AI 代理交易构建器 API |
+| [项目介绍](docs/zh/PITCH.md) | 投资者演示 |
+| [策略指南](docs/zh/STRATEGY.md) | Holging 策略说明 |
+| [代币规格](docs/zh/TOKEN.md) | shortSOL 代币规格 |
+| [LP 指南](docs/zh/LP.md) | 流动性提供者指南 |
+| [铸造规则](docs/zh/MINT_RULES.md) | 代币铸造规格 |
+
+---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│  Frontend (React 19 + Vite 7)           │
-│  ├── Mint / Redeem forms                │
-│  ├── Strategy Terminal (V-curve chart)  │
-│  ├── Token Holders view                 │
-│  ├── State (public vault health)        │
-│  └── Risk Dashboard (admin)             │
-├─────────────────────────────────────────┤
-│  Pyth Network (pull oracle, 400ms)      │
-├─────────────────────────────────────────┤
-│  Solana Program (Anchor 0.32.1, Rust)   │
-│  User instructions                      │
-│  ├── mint               — USDC → shortSOL │
-│  ├── redeem             — shortSOL → USDC │
-│  ├── update_price       — refresh oracle  │
-│  LP instructions (permissionless)       │
-│  ├── add_liquidity      — deposit USDC    │
-│  ├── remove_liquidity   — withdraw USDC   │
-│  ├── claim_lp_fees      — claim earned fees│
-│  Admin instructions                     │
-│  ├── initialize         — pool setup      │
-│  ├── initialize_lp      — create LP mint  │
-│  ├── migrate_pool       — realloc state   │
-│  ├── withdraw_fees      — protocol fees   │
-│  ├── update_k           — recalibrate k   │
-│  ├── update_fee         — adjust fee bps  │
-│  ├── update_min_lp_deposit — LP threshold │
-│  ├── set_pause          — emergency halt  │
-│  ├── create_metadata    — SPL metadata    │
-│  ├── transfer_authority — propose handoff │
-│  ├── accept_authority   — confirm handoff │
-│  Funding Rate                           │
-│  ├── initialize_funding — setup k-decay  │
-│  ├── accrue_funding     — apply decay    │
-│  └── update_funding_rate — change rate   │
-└─────────────────────────────────────────┘
-```
-
-## Oracle Security (4-layer validation)
-
-1. **Staleness** — price not older than 120s (devnet) / 30s (mainnet)
-2. **Confidence** — CI < 2% of price
-3. **Deviation** — change vs cached price < 15%
-4. **Floor** — SOL price > $1.00
-
-## Funding Rate
-
-The protocol charges a continuous **k-decay** funding rate to compensate the vault for holding collateral:
-
-```
-k_new = k_old × (denom − rate_bps × elapsed_secs) / denom
-where denom = SECS_PER_DAY × 10,000
-```
-
-- Default rate: **10 bps/day** (~30.6% compound/year)
-- Max rate: **100 bps/day** (~97% compound/year)
-- Applied automatically on every mint/redeem (inline, no keeper dependency)
-- Hard cap: max **30 days** per `accrue_funding` call — prevents k→0 from keeper downtime
-- Permissionless keeper: `scripts/keeper.ts` calls `accrue_funding` periodically
-
-### Two-Step Authority Transfer
-
-Admin key handoff is atomic and safe:
-1. `transfer_authority` — current admin proposes a new authority (stores `pending_authority`)
-2. `accept_authority` — new authority signs to confirm; previous key is invalidated
-
-## LP System
-
-Permissionless liquidity provision with pro-rata fee distribution:
-
-- **add_liquidity** — deposit USDC, receive LP tokens (ERC4626-style shares)
-- **remove_liquidity** — burn LP tokens, withdraw proportional USDC principal
-- **claim_lp_fees** — collect accumulated trading fees (fee-per-share accumulator, 1e12 precision)
-
-LP providers earn fees from every mint/redeem operation and from funding rate distributions. Minimum deposit: $100 USDC (configurable via `update_min_lp_deposit`).
-
-## Circuit Breaker
-
-Auto-pauses the pool if vault coverage drops below 95% of obligations. Protects users from bank runs during extreme SOL price drops.
-
-Admin withdrawals (`remove_liquidity`, `withdraw_fees`) are limited to keep vault at ≥110% of obligations — providing a 15% buffer before the circuit breaker triggers.
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Blockchain | Solana (400ms finality, $0.001/tx) |
-| Smart Contract | Anchor 0.32.1 (Rust) |
-| Oracle | Pyth Network (pull-based) |
-| Frontend | React 19 + TypeScript 5.9 + Vite 7 |
-| Wallet | Solana Wallet Adapter (Phantom, Solflare) |
-| Token | SPL Token + Metaplex metadata |
-| Hosting | holging.com |
-
-## Getting Started
-
-### Prerequisites
-
-- Rust + Solana CLI + Anchor CLI
-- Node.js >= 20
-- Phantom or Solflare wallet (set to Devnet)
-
-### Build & Deploy
-
-```bash
-# Build the program
-anchor build
-
-# Deploy to devnet
-anchor deploy
-
-# Initialize pool (requires scripts/)
-npx ts-node scripts/initialize-pool.ts
-
-# (Optional) Initialize funding rate — 10 bps/day k-decay
-npx ts-node scripts/initialize-pool.ts  # sets up FundingConfig
-
-# Run funding keeper (calls accrue_funding every hour)
-npx ts-node scripts/keeper.ts
-```
-
-### Run Frontend
-
-```bash
-cd app
-npm install
-npm run dev
-```
-
-Open [localhost:5173](http://localhost:5173), connect wallet, and mint shortSOL.
-
-## Key Differences vs Competitors
-
-| | Holging | Perp DEX (Drift, Jupiter) | Leveraged Tokens |
-|---|---------|--------------------------|-----------------|
-| Margin/Liquidation | None | Yes | Partial |
-| Volatility Decay | None | None (funding) | Yes |
-| Slippage | 0% | Depth-dependent | Varies |
-| Roundtrip Fee | 0.08% | 0.1–0.3% | 0.3–1% |
-| Composability | SPL token | Position | ERC20/SPL |
-| Expiration | None | None | None |
-
-## Project Structure
-
-```
-programs/holging/src/
-  ├── lib.rs              — program entry
-  ├── state.rs            — PoolState + FundingConfig accounts
-  ├── constants.rs        — math constants, oracle config
-  ├── oracle.rs           — Pyth price validation
-  ├── fees.rs             — dynamic fee calculation
-  ├── errors.rs           — 20 error codes
-  ├── events.rs           — 16 event types
-  └── instructions/       — 20 instruction handlers
-
-app/src/
-  ├── components/         — React UI components
-  ├── hooks/              — usePool, usePythPrice, useSolshort
-  ├── utils/              — math, PDA derivation, Pyth helpers
-  └── idl/                — Anchor IDL
+┌─────────────────────────────┐
+│  Frontend (React + Vite)    │  holging.com
+├─────────────────────────────┤
+│  Transaction Builder API    │  api.holging.com
+├─────────────────────────────┤
+│  Pyth Network (oracle)      │  4 price feeds
+├─────────────────────────────┤
+│  Solana Program (Anchor)    │  20 instructions
+│  Program ID: CLmSD9e...     │  2,873 lines Rust
+└─────────────────────────────┘
 ```
 
 ## License
