@@ -1,316 +1,316 @@
-# Holging LP — Руководство для поставщиков ликвидности
+# Holging LP — Liquidity Provider Guide
 
-> Последнее обновление: 2026-03-29
-> Протокол: Holging (CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX)
-> Сеть: Solana Devnet → Mainnet (в подготовке)
-
----
-
-## 1. Что такое LP в Holging?
-
-Поставщик ликвидности (LP) в Holging — это участник, который **вносит USDC в vault протокола**, обеспечивая ликвидность для mint и redeem операций пользователей shortSOL. Взамен LP получает:
-
-- **LP-токены** — SPL-токен, представляющий долю в пуле
-- **Торговые комиссии** — 100% комиссий от каждого mint/redeem
-- **Доход от Funding Rate** — освобождённый USDC при decay k
-
-LP в Holging — это аналог **андеррайтера**: вы берёте на себя контрагентский риск обратной экспозиции к SOL в обмен на стабильный доход.
+> Last updated: 2026-03-29
+> Protocol: Holging (CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX)
+> Network: Solana Devnet → Mainnet (in preparation)
 
 ---
 
-## 2. Как это работает?
+## 1. What is LP in Holging?
 
-### 2.1 Внесение ликвидности
+A Liquidity Provider (LP) in Holging is a participant who **deposits USDC into the protocol's vault**, providing liquidity for shortSOL mint and redeem operations. In return, the LP receives:
+
+- **LP tokens** — an SPL token representing a share of the pool
+- **Trading fees** — 100% of fees from every mint/redeem
+- **Funding Rate income** — freed USDC from k-decay
+
+An LP in Holging is analogous to an **underwriter**: you take on counterparty risk with inverse SOL exposure in exchange for steady income.
+
+---
+
+## 2. How Does It Work?
+
+### 2.1 Depositing Liquidity
 
 ```
-Вы вносите USDC → получаете LP-токены
+You deposit USDC → receive LP tokens
 ```
 
-- Минимальный депозит: **$100 USDC**
-- LP-токены минтятся пропорционально вашей доле в `lp_principal`
-- Используется **dead shares pattern** (ERC-4626) — защита от атак первого депозитора
-- Формула: `shares = usdc_amount × (total_supply + 1000) / (principal + 1000)`
+- Minimum deposit: **$100 USDC**
+- LP tokens are minted proportionally to your share in `lp_principal`
+- Uses the **dead shares pattern** (ERC-4626) — protection against first-depositor attacks
+- Formula: `shares = usdc_amount × (total_supply + 1000) / (principal + 1000)`
 
-### 2.2 Механика заработка
+### 2.2 Earning Mechanics
 
-LP зарабатывает из **двух источников**:
+LPs earn from **two sources**:
 
-#### Источник 1: Торговые комиссии (Fee APY)
-Каждый mint и redeem shortSOL генерирует комиссию, которая **полностью** распределяется между LP через fee-per-share accumulator (точность 1e12).
+#### Source 1: Trading Fees (Fee APY)
+Every shortSOL mint and redeem generates a fee that is **fully** distributed among LPs via a fee-per-share accumulator (precision 1e12).
 
-| Состояние Vault | Комиссия (per side) | Roundtrip | Когда |
-|-----------------|---------------------|-----------|-------|
-| > 200% (здоровый) | 2 bps (0.02%) | 0.04% | Vault сильно обеспечен |
-| 150–200% (нормальный) | 20 bps (0.20%) | 0.40% | Стандартная работа |
-| 100–150% (повышенный) | 40 bps (0.40%) | 0.80% | Стресс — комиссии растут |
-| < 100% (критический) | 80 bps (0.80%) | 1.60% | Авто-защита vault |
+| Vault State | Fee (per side) | Roundtrip | When |
+|-------------|----------------|-----------|------|
+| > 200% (healthy) | 2 bps (0.02%) | 0.04% | Vault is well-collateralized |
+| 150–200% (normal) | 20 bps (0.20%) | 0.40% | Standard operation |
+| 100–150% (elevated) | 40 bps (0.40%) | 0.80% | Stress — fees increase |
+| < 100% (critical) | 80 bps (0.80%) | 1.60% | Vault auto-protection |
 
-> Динамическая комиссия — встроенный стабилизатор: при стрессе vault высокие комиссии замедляют redemptions и привлекают новые mint'ы, восстанавливая здоровье пула.
+> Dynamic fees are a built-in stabilizer: under vault stress, high fees slow down redemptions and attract new mints, restoring pool health.
 
-#### Источник 2: Funding Rate (k-Decay APY)
-Протокол применяет непрерывный decay к параметру `k` (10 bps/день по умолчанию). Это уменьшает обязательства vault перед держателями shortSOL, а разница (freed USDC) распределяется LP.
+#### Source 2: Funding Rate (k-Decay APY)
+The protocol applies continuous decay to the `k` parameter (10 bps/day by default). This reduces the vault's obligations to shortSOL holders, and the difference (freed USDC) is distributed to LPs.
 
 ```
 k_new = k_old × (864,000,000 − rate × elapsed) / 864,000,000
 ```
 
-- **10 bps/день** = 0.10%/день = **30.59% compound/год**
-- Этот доход **не зависит от объёма торгов** — это floor yield для LP
-- Funding — компенсация за контрагентский риск vault
+- **10 bps/day** = 0.10%/day = **30.59% compounded/year**
+- This income is **independent of trading volume** — it's the floor yield for LPs
+- Funding compensates for the vault's counterparty risk
 
-### 2.3 Вывод ликвидности
+### 2.3 Withdrawing Liquidity
 
 ```
-Сжигаете LP-токены → получаете USDC пропорционально principal
-Вызываете claim_lp_fees → получаете накопленные комиссии
+Burn LP tokens → receive USDC proportional to principal
+Call claim_lp_fees → receive accumulated fees
 ```
 
-- Вывод principal и claim fees — **отдельные операции** (это защита: fees не влияют на share price)
-- При выводе проверяется здоровье vault: остаток должен быть ≥ **110% обязательств**
-- Если vault недостаточно обеспечен — вывод заблокирован (это защищает других LP и пользователей)
+- Principal withdrawal and fee claims are **separate operations** (by design: fees don't affect share price)
+- Upon withdrawal, vault health is checked: the remaining balance must be ≥ **110% of obligations**
+- If the vault is undercollateralized — withdrawal is blocked (this protects other LPs and users)
 
 ---
 
-## 3. Доходности (APY)
+## 3. Yields (APY)
 
-### 3.1 Модель доходности
+### 3.1 Yield Model
 
-| Источник | Формула | Зависимость |
-|----------|---------|-------------|
-| **Fee APY** | `daily_volume × roundtrip_fee × 365 / TVL` | От объёма торгов |
-| **Funding APY** | `TVL × 0.001 × 365 / TVL = 36.50%` | Константа (floor yield) |
-| **Общий APY** | Fee APY + Funding APY | |
+| Source | Formula | Depends On |
+|--------|---------|------------|
+| **Fee APY** | `daily_volume × roundtrip_fee × 365 / TVL` | Trading volume |
+| **Funding APY** | `TVL × 0.001 × 365 / TVL = 36.50%` | Constant (floor yield) |
+| **Total APY** | Fee APY + Funding APY | |
 
-### 3.2 Прогнозные сценарии
+### 3.2 Projected Scenarios
 
-При здоровом vault (>200%, roundtrip fee = 0.04%):
+With a healthy vault (>200%, roundtrip fee = 0.04%):
 
-| Сценарий | TVL | Дневной объём | Fee APY | Funding APY | **Общий APY** |
-|----------|-----|---------------|---------|-------------|---------------|
-| Консервативный | $100K | $10K | 1.46% | 36.50% | **37.96%** |
-| Умеренный | $500K | $100K | 2.92% | 36.50% | **39.42%** |
-| Агрессивный | $2M | $500K | 3.65% | 36.50% | **40.15%** |
+| Scenario | TVL | Daily Volume | Fee APY | Funding APY | **Total APY** |
+|----------|-----|-------------|---------|-------------|---------------|
+| Conservative | $100K | $10K | 1.46% | 36.50% | **37.96%** |
+| Moderate | $500K | $100K | 2.92% | 36.50% | **39.42%** |
+| Aggressive | $2M | $500K | 3.65% | 36.50% | **40.15%** |
 
-При стрессовом vault (150–200%, roundtrip fee = 0.40%):
+With a stressed vault (150–200%, roundtrip fee = 0.40%):
 
-| Сценарий | TVL | Дневной объём | Fee APY | Funding APY | **Общий APY** |
-|----------|-----|---------------|---------|-------------|---------------|
-| Консервативный | $100K | $10K | 14.60% | 36.50% | **51.10%** |
-| Умеренный | $500K | $100K | 29.20% | 36.50% | **65.70%** |
-| Агрессивный | $2M | $500K | 36.50% | 36.50% | **73.00%** |
+| Scenario | TVL | Daily Volume | Fee APY | Funding APY | **Total APY** |
+|----------|-----|-------------|---------|-------------|---------------|
+| Conservative | $100K | $10K | 14.60% | 36.50% | **51.10%** |
+| Moderate | $500K | $100K | 29.20% | 36.50% | **65.70%** |
+| Aggressive | $2M | $500K | 36.50% | 36.50% | **73.00%** |
 
-### 3.3 Ключевой инсайт
+### 3.3 Key Insight
 
-**Funding APY (36.5%) — это гарантированный минимум**, не зависящий от объёма торгов. Даже при нулевом объёме LP зарабатывает ~36.5% годовых за счёт k-decay. Fee APY — бонус сверху, зависящий от активности пользователей.
+**Funding APY (36.5%) is the guaranteed minimum**, independent of trading volume. Even with zero volume, LPs earn ~36.5% annually from k-decay. Fee APY is a bonus on top, depending on user activity.
 
-> Для сравнения: JLP на Jupiter даёт 15–25% APY, Drift DLP ~10–20% APY, Kamino vaults 5–15% APY.
-
----
-
-## 4. Риски для LP
-
-### 🔴 Риск 1: Стресс vault при падении SOL (ВЫСОКИЙ)
-
-**Суть:** Когда SOL падает, shortSOL дорожает (`shortSOL_price = k / SOL_price`). Обязательства vault перед держателями shortSOL растут, а USDC в vault остаётся прежним.
-
-**Пример:**
-- LP внёс $100,000 USDC при SOL = $170
-- Пользователи намининтили shortSOL на $50,000
-- SOL падает до $85 (−50%): shortSOL удваивается в цене
-- Обязательства vault: $50,000 → $100,000
-- Vault ratio: $150,000 / $100,000 = 150% (стресс, но не критичный)
-
-**Критический порог:**
-- Vault ratio < 95% → Circuit Breaker: все redeem заблокированы
-- Vault ratio < 110% → LP вывод заблокирован
-
-**Защитные механизмы:**
-- ✅ Circuit Breaker (95%) — автоматическая пауза до восстановления
-- ✅ Динамические комиссии — при стрессе растут до 80 bps, привлекая новые mint'ы
-- ✅ Funding Rate (k-decay) — непрерывно уменьшает обязательства
-- ✅ Вывод LP заблокирован при ratio < 110% — защита от bank run
-
-**Что это значит для LP:** В экстремальном сценарии (SOL −80%+) ваш USDC может быть временно заблокирован в vault до восстановления цены или прихода новых LP.
+> For comparison: JLP on Jupiter yields 15–25% APY, Drift DLP ~10–20% APY, Kamino vaults 5–15% APY.
 
 ---
 
-### 🟡 Риск 2: Impermanent Loss от k-decay (СРЕДНИЙ)
+## 4. Risks for LPs
 
-**Суть:** k-decay уменьшает shortSOL_price при неизменной цене SOL. Это хорошо для LP (уменьшает обязательства), но если SOL падает сильнее, чем k-decay компенсирует — LP несёт убыток.
+### 🔴 Risk 1: Vault Stress During SOL Price Decline (HIGH)
 
-**Формула потенциального убытка LP:**
+**Summary:** When SOL drops, shortSOL appreciates (`shortSOL_price = k / SOL_price`). The vault's obligations to shortSOL holders increase while the USDC in the vault remains the same.
+
+**Example:**
+- LP deposited $100,000 USDC when SOL = $170
+- Users minted shortSOL worth $50,000
+- SOL drops to $85 (−50%): shortSOL doubles in price
+- Vault obligations: $50,000 → $100,000
+- Vault ratio: $150,000 / $100,000 = 150% (stressed but not critical)
+
+**Critical thresholds:**
+- Vault ratio < 95% → Circuit Breaker: all redemptions blocked
+- Vault ratio < 110% → LP withdrawal blocked
+
+**Protective mechanisms:**
+- ✅ Circuit Breaker (95%) — automatic pause until recovery
+- ✅ Dynamic fees — increase up to 80 bps under stress, attracting new mints
+- ✅ Funding Rate (k-decay) — continuously reduces obligations
+- ✅ LP withdrawal blocked at ratio < 110% — protection against bank runs
+
+**What this means for LPs:** In an extreme scenario (SOL −80%+), your USDC may be temporarily locked in the vault until the price recovers or new LPs join.
+
+---
+
+### 🟡 Risk 2: Impermanent Loss from k-Decay (MEDIUM)
+
+**Summary:** k-decay reduces shortSOL_price when the SOL price is unchanged. This is good for LPs (reduces obligations), but if SOL drops more than k-decay can compensate — the LP incurs a loss.
+
+**Formula for potential LP loss:**
 ```
 LP_loss = obligations_at_current_price − vault_balance
         = (circulating × k / SOL_price / 1e12) − vault_USDC
 ```
 
-**Защита:** k-decay работает как встроенная страховка — ~0.1%/день обязательства автоматически сокращаются, даже если SOL не двигается.
+**Protection:** k-decay acts as built-in insurance — ~0.1%/day of obligations are automatically reduced, even if SOL doesn't move.
 
 ---
 
-### 🟡 Риск 3: Smart Contract Risk (СРЕДНИЙ)
+### 🟡 Risk 3: Smart Contract Risk (MEDIUM)
 
-**Суть:** Протокол деплоен на Solana. Любой баг в программе может привести к потере средств.
+**Summary:** The protocol is deployed on Solana. Any bug in the program could lead to loss of funds.
 
-**Текущие защиты:**
-- ✅ Checked arithmetic (все операции с overflow-protection)
-- ✅ Vault reconciliation (`reload()` + assert после каждого CPI-трансфера)
-- ✅ 19 инструкций, 21 код ошибки, 17 типов событий
-- ✅ 4-уровневая валидация оракула Pyth
-- ✅ Rate limiting (2 сек между операциями)
+**Current protections:**
+- ✅ Checked arithmetic (all operations with overflow protection)
+- ✅ Vault reconciliation (`reload()` + assert after every CPI transfer)
+- ✅ 19 instructions, 21 error codes, 17 event types
+- ✅ 4-level Pyth oracle validation
+- ✅ Rate limiting (2 sec between operations)
 - ✅ Two-step authority transfer
-- ✅ Dead shares (ERC-4626) — защита от share inflation
-- ✅ MIN_K floor — защита от k→0
+- ✅ Dead shares (ERC-4626) — protection against share inflation
+- ✅ MIN_K floor — protection against k→0
 
-**Не закрыто:**
-- ⚠️ Профессиональный аудит (OtterSec/Neodyme) — запланирован перед mainnet
-- ⚠️ Нет timelock на admin параметры (admin может мгновенно изменить fee, funding rate)
-- ⚠️ Программа находится на devnet — не тестирована под mainnet нагрузкой
-
----
-
-### 🟡 Риск 4: Oracle Risk (СРЕДНИЙ)
-
-**Суть:** Цена shortSOL определяется оракулом Pyth. Ошибка или манипуляция оракулом = ошибочные mint/redeem.
-
-**4-уровневая защита:**
-
-| Проверка | Порог | Что отсекает |
-|----------|-------|-------------|
-| Staleness | 30с (mainnet) / 86400с (devnet) | Устаревшие данные |
-| Confidence | CI < 2% от цены | Неточные данные |
-| Deviation | < 15% от кэша | Резкие скачки / манипуляцию |
-| Floor | > $1.00 | Нулевые / отрицательные цены |
-
-**Остаточный риск:** Pyth — единственный оракул, нет fallback. Даунтайм Pyth = пауза протокола.
+**Not yet addressed:**
+- ⚠️ Professional audit (OtterSec/Neodyme) — planned before mainnet
+- ⚠️ No timelock on admin parameters (admin can instantly change fee, funding rate)
+- ⚠️ Program is on devnet — not tested under mainnet load
 
 ---
 
-### 🟢 Риск 5: Admin Risk (НИЗКИЙ)
+### 🟡 Risk 4: Oracle Risk (MEDIUM)
 
-**Суть:** Админ может менять параметры: fee, funding rate, min LP deposit, pause.
+**Summary:** The shortSOL price is determined by the Pyth oracle. An oracle error or manipulation = incorrect mint/redeem.
 
-**Что может сделать admin:**
-| Действие | Ограничение |
-|----------|-------------|
-| Изменить fee | Max 100 bps (1%) |
-| Изменить funding rate | Max 100 bps/день |
-| Вывести fees | Только excess выше 110% obligations + LP principal + LP pending fees |
-| Паузить протокол | В обе стороны |
-| Сменить authority | Two-step: propose → accept |
+**4-level protection:**
 
-**Что admin НЕ может:**
-- ❌ Вывести LP principal (защищён в `withdraw_fees`)
-- ❌ Вывести pending LP fees (защищены в `withdraw_fees`)
-- ❌ Изменить k при circulating > 0
-- ❌ Минтить/выводить shortSOL напрямую
+| Check | Threshold | What it filters out |
+|-------|-----------|---------------------|
+| Staleness | 30s (mainnet) / 86400s (devnet) | Stale data |
+| Confidence | CI < 2% of price | Inaccurate data |
+| Deviation | < 15% from cache | Sharp spikes / manipulation |
+| Floor | > $1.00 | Zero / negative prices |
+
+**Residual risk:** Pyth is the sole oracle, no fallback. Pyth downtime = protocol pause.
 
 ---
 
-### 🟢 Риск 6: Liquidity Lock (НИЗКИЙ)
+### 🟢 Risk 5: Admin Risk (LOW)
 
-**Суть:** LP не может вывести средства если vault health < 110%.
+**Summary:** The admin can change parameters: fee, funding rate, min LP deposit, pause.
 
-**Когда это происходит:** Только при сильном падении SOL, когда vault обязательства близки к балансу. В нормальных условиях ликвидность полностью доступна.
+**What the admin can do:**
+| Action | Limitation |
+|--------|------------|
+| Change fee | Max 100 bps (1%) |
+| Change funding rate | Max 100 bps/day |
+| Withdraw fees | Only excess above 110% obligations + LP principal + LP pending fees |
+| Pause protocol | In both directions |
+| Transfer authority | Two-step: propose → accept |
 
-**Защита:** Circuit breaker на 95% останавливает новые redemptions, стабилизируя vault и позволяя LP вывести средства после восстановления.
-
----
-
-## 5. Сравнение с альтернативами
-
-| Параметр | Holging LP | JLP (Jupiter) | DLP (Drift) | Kamino Vaults |
-|----------|-----------|--------------|------------|---------------|
-| **Базовый APY** | ~37–40% | 15–25% | 10–20% | 5–15% |
-| **Floor yield** | 36.5% (funding) | 0% (только fees) | 0% (только fees) | 0% |
-| **Риск IL** | Да (при падении SOL) | Да (trader PnL) | Да (AMM PnL) | Минимальный |
-| **Ликвидация LP** | Нет | Нет | Нет | Нет |
-| **Lock-up** | Нет (но vault health check) | Нет | Нет | Некоторые vault'ы |
-| **Мин. депозит** | $100 | Нет | Нет | Varies |
-| **Composability** | LP токен (SPL) | JLP токен (SPL) | Позиция | Vault shares |
-| **Audit** | В процессе | Да (OtterSec) | Да (OtterSec) | Да |
+**What the admin CANNOT do:**
+- ❌ Withdraw LP principal (protected in `withdraw_fees`)
+- ❌ Withdraw pending LP fees (protected in `withdraw_fees`)
+- ❌ Change k when circulating > 0
+- ❌ Mint/withdraw shortSOL directly
 
 ---
 
-## 6. Как стать LP
+### 🟢 Risk 6: Liquidity Lock (LOW)
 
-### 6.1 Через frontend (holging.com)
+**Summary:** LPs cannot withdraw funds if vault health < 110%.
 
-1. Подключите кошелёк (Phantom / Solflare) — настройте на **Devnet**
-2. Получите тестовый USDC через Faucet (кнопка на сайте)
-3. Перейдите в раздел **LP Dashboard**
-4. Введите сумму (мин. $100 USDC) и нажмите **Add Liquidity**
-5. Подтвердите транзакцию в кошельке
-6. Ваши LP-токены появятся в кошельке
+**When this happens:** Only during a significant SOL price decline when vault obligations approach the balance. Under normal conditions, liquidity is fully available.
 
-### 6.2 Через CLI (для продвинутых)
+**Protection:** The circuit breaker at 95% halts new redemptions, stabilizing the vault and allowing LPs to withdraw after recovery.
+
+---
+
+## 5. Comparison with Alternatives
+
+| Parameter | Holging LP | JLP (Jupiter) | DLP (Drift) | Kamino Vaults |
+|-----------|-----------|--------------|------------|---------------|
+| **Base APY** | ~37–40% | 15–25% | 10–20% | 5–15% |
+| **Floor yield** | 36.5% (funding) | 0% (fees only) | 0% (fees only) | 0% |
+| **IL risk** | Yes (on SOL decline) | Yes (trader PnL) | Yes (AMM PnL) | Minimal |
+| **LP liquidation** | No | No | No | No |
+| **Lock-up** | No (but vault health check) | No | No | Some vaults |
+| **Min. deposit** | $100 | None | None | Varies |
+| **Composability** | LP token (SPL) | JLP token (SPL) | Position | Vault shares |
+| **Audit** | In progress | Yes (OtterSec) | Yes (OtterSec) | Yes |
+
+---
+
+## 6. How to Become an LP
+
+### 6.1 Via Frontend (holging.com)
+
+1. Connect your wallet (Phantom / Solflare) — set to **Devnet**
+2. Get test USDC via Faucet (button on the site)
+3. Navigate to the **LP Dashboard** section
+4. Enter the amount (min. $100 USDC) and click **Add Liquidity**
+5. Confirm the transaction in your wallet
+6. Your LP tokens will appear in your wallet
+
+### 6.2 Via CLI (for advanced users)
 
 ```bash
-# Добавить ликвидность (10,000 USDC)
+# Add liquidity (10,000 USDC)
 npx ts-node scripts/add-liquidity.ts --amount 10000
 
-# Проверить позицию
+# Check position
 # LP position PDA: ["lp_position", pool_state, your_pubkey]
 
-# Клеймнуть накопленные fees
-# claim_lp_fees через program.methods.claimLpFees(POOL_ID)
+# Claim accumulated fees
+# claim_lp_fees via program.methods.claimLpFees(POOL_ID)
 
-# Вывести ликвидность (50% shares)
-# remove_liquidity через program.methods.removeLiquidity(POOL_ID, halfShares)
+# Remove liquidity (50% shares)
+# remove_liquidity via program.methods.removeLiquidity(POOL_ID, halfShares)
 ```
 
-### 6.3 Операции LP
+### 6.3 LP Operations
 
-| Операция | Инструкция | Кто может | Комиссия |
-|----------|-----------|-----------|----------|
-| Внести USDC | `add_liquidity` | Любой (permissionless) | Нет |
-| Вывести USDC | `remove_liquidity` | Владелец LP position | Нет (но vault health check) |
-| Клеймнуть fees | `claim_lp_fees` | Владелец LP position | Нет |
+| Operation | Instruction | Who can call | Fee |
+|-----------|-------------|--------------|-----|
+| Deposit USDC | `add_liquidity` | Anyone (permissionless) | None |
+| Withdraw USDC | `remove_liquidity` | LP position owner | None (but vault health check) |
+| Claim fees | `claim_lp_fees` | LP position owner | None |
 
 ---
 
 ## 7. FAQ
 
-### Могу ли я потерять свой deposit?
+### Can I lose my deposit?
 
-**Частично — да.** В экстремальном сценарии (SOL −80%+ за короткий период, до срабатывания circuit breaker) обязательства vault могут превысить баланс. В этом случае ваш пропорциональный вывод будет меньше депозита. Однако:
-- Funding rate (k-decay) непрерывно уменьшает обязательства, снижая этот риск
-- Circuit breaker останавливает redemptions при ratio < 95%
-- Динамические комиссии автоматически повышаются при стрессе vault
+**Partially — yes.** In an extreme scenario (SOL −80%+ over a short period, before the circuit breaker activates), vault obligations may exceed the balance. In that case, your proportional withdrawal would be less than your deposit. However:
+- Funding rate (k-decay) continuously reduces obligations, mitigating this risk
+- Circuit breaker halts redemptions at ratio < 95%
+- Dynamic fees automatically increase under vault stress
 
-### Когда я получаю доход?
+### When do I earn income?
 
-**Непрерывно.** Fees начисляются на ваш `pending_fees` при каждом mint/redeem в протоколе. Funding rate доход добавляется при каждом вызове `accrue_funding` (keeper раз в час, или inline при mint/redeem). Вы можете клеймнуть накопленные fees в любой момент через `claim_lp_fees`.
+**Continuously.** Fees are accrued to your `pending_fees` with every mint/redeem in the protocol. Funding rate income is added with every `accrue_funding` call (keeper runs hourly, or inline during mint/redeem). You can claim accumulated fees at any time via `claim_lp_fees`.
 
-### Что происходит при circuit breaker?
+### What happens during a circuit breaker event?
 
-Все redeem-операции блокируются. Mint-операции **остаются доступны** — это позволяет новым пользователям вносить USDC и восстанавливать vault ratio. Как только ratio > 95%, redemptions возобновляются автоматически (admin снимает паузу).
+All redeem operations are blocked. Mint operations **remain available** — this allows new users to deposit USDC and restore the vault ratio. Once the ratio exceeds 95%, redemptions resume automatically (admin lifts the pause).
 
-### Могу ли я вывести средства в любой момент?
+### Can I withdraw funds at any time?
 
-**Да, если vault ratio ≥ 110%.** Если ratio ниже — вывод заблокирован до восстановления. Claim fees доступен всегда (пока протокол не на паузе и в vault есть USDC).
+**Yes, if vault ratio ≥ 110%.** If the ratio is lower — withdrawal is blocked until recovery. Fee claims are always available (as long as the protocol is not paused and there is USDC in the vault).
 
-### Какие гарантии от admin rugpull?
+### What guarantees exist against an admin rugpull?
 
-- Admin **не может** вывести LP principal или pending fees (защищено в `withdraw_fees`)
-- Admin **не может** изменить k при circulating > 0
-- Admin authority transfer — **двухшаговый** (propose + accept)
-- Все admin-действия эмитируют on-chain события для мониторинга
+- Admin **cannot** withdraw LP principal or pending fees (protected in `withdraw_fees`)
+- Admin **cannot** change k when circulating > 0
+- Admin authority transfer is **two-step** (propose + accept)
+- All admin actions emit on-chain events for monitoring
 
-### Чем это отличается от JLP на Jupiter?
+### How does this differ from JLP on Jupiter?
 
-JLP — контрагент для leveraged traders: LP зарабатывает когда трейдеры теряют, и наоборот. В Holging LP зарабатывает **стабильный funding rate (36.5% APY)** + торговые комиссии, но несёт контрагентский риск инверсной экспозиции к SOL. Главное отличие — floor yield: Holging LP зарабатывает даже при нулевом объёме торгов.
+JLP acts as the counterparty for leveraged traders: LPs earn when traders lose, and vice versa. In Holging, LPs earn a **stable funding rate (36.5% APY)** + trading fees, but bear counterparty risk of inverse SOL exposure. The key difference is floor yield: Holging LPs earn even with zero trading volume.
 
 ---
 
-## 8. Контакты и ресурсы
+## 8. Contacts and Resources
 
-- **Сайт:** [holging.com](https://holging.com)
+- **Website:** [holging.com](https://holging.com)
 - **Program ID:** `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
-- **Математика:** [SOLSHORT_MATH.md](../SOLSHORT_MATH.md)
+- **Math:** [SOLSHORT_MATH.md](../SOLSHORT_MATH.md)
 - **Security Audit:** [docs/SECURITY_AUDIT.md](SECURITY_AUDIT.md)
-- **Бизнес-анализ:** [docs/BUSINESS_ANALYSIS.md](BUSINESS_ANALYSIS.md)
+- **Business Analysis:** [docs/BUSINESS_ANALYSIS.md](BUSINESS_ANALYSIS.md)
 
 ---
 
-*Данный документ является информационным и не является финансовым советом. Все APY — прогнозные, основаны на текущих параметрах протокола и могут измениться. DeFi несёт риски потери средств.*
+*This document is for informational purposes only and does not constitute financial advice. All APYs are projections based on current protocol parameters and are subject to change. DeFi carries the risk of loss of funds.*

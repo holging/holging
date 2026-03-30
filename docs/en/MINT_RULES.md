@@ -1,22 +1,22 @@
-# Mint — Правила минта токена
+# Mint — Token Minting Rules
 
-> Полное описание процесса создания inverse-токена в протоколе Holging.
-
----
-
-## Обзор
-
-Mint — операция депозита USDC для получения inverse-токена (shortSOL, shortTSLA и т.д.).
-
-```
-Пользователь → USDC → Протокол → inverse token
-```
-
-**Ключевой принцип:** токены минтятся ТОЛЬКО программой, по формуле, на основе Pyth oracle цены. Никто — ни admin, ни пользователь — не может создать токены без обеспечения USDC в vault.
+> Complete description of the inverse token creation process in the Holging protocol.
 
 ---
 
-## Формула минта
+## Overview
+
+Mint — a USDC deposit operation to receive an inverse token (shortSOL, shortTSLA, etc.).
+
+```
+User → USDC → Protocol → inverse token
+```
+
+**Key principle:** tokens are minted ONLY by the program, using a formula, based on the Pyth oracle price. Nobody — neither the admin nor the user — can create tokens without USDC collateral in the vault.
+
+---
+
+## Mint Formula
 
 ```
 1. shortsol_price = k × 1e9 / SOL_price
@@ -31,7 +31,7 @@ Mint — операция депозита USDC для получения invers
             ↑ scaling 1e6→1e9   ↑ PRICE_PRECISION
 ```
 
-### Пример
+### Example
 
 ```
 Input:        100 USDC
@@ -45,54 +45,54 @@ Fee:          100 × 2 / 10000 = $0.02
 Effective:    $99.98
 Tokens:       99.98 × 1000 × 1e9 / 85,110,000,000 = 1.1748 shortSOL
 
-Output:       1.1748 shortSOL → кошелёк пользователя
+Output:       1.1748 shortSOL → user's wallet
 Vault:        +$100 USDC
 ```
 
 ---
 
-## Пошаговый процесс (on-chain)
+## Step-by-Step Process (on-chain)
 
-### 1. Проверки перед минтом
+### 1. Pre-Mint Checks
 
-| Проверка | Условие | Ошибка |
-|----------|---------|--------|
-| Пул не на паузе | `!pool.paused` | `Paused` |
-| Сумма > 0 | `usdc_amount > 0` | `AmountTooSmall` |
-| Rate limit | `>= 2 секунды с последней операции` | `RateLimitExceeded` |
-| Funding config | Если существует — обязан быть передан | `FundingConfigRequired` |
+| Check | Condition | Error |
+|-------|-----------|-------|
+| Pool is not paused | `!pool.paused` | `Paused` |
+| Amount > 0 | `usdc_amount > 0` | `AmountTooSmall` |
+| Rate limit | `>= 2 seconds since last operation` | `RateLimitExceeded` |
+| Funding config | If exists — must be provided | `FundingConfigRequired` |
 
-### 2. Funding (если передан FundingConfig)
+### 2. Funding (if FundingConfig is provided)
 
 ```
-Перед расчётом цены применяется k-decay:
+Before price calculation, k-decay is applied:
   elapsed = now − last_accrued
-  periods = elapsed / 86400  (сколько дней прошло)
+  periods = elapsed / 86400  (number of days elapsed)
   k_new = k × (1 − rate_bps/10000)^periods
 
-Funding уменьшает k → shortSOL дешевеет со временем.
-Текущий rate: 10 bps/day = 0.1%/day ≈ 30.6%/year
+Funding decreases k → shortSOL becomes cheaper over time.
+Current rate: 10 bps/day = 0.1%/day ≈ 30.6%/year
 ```
 
-### 3. Oracle валидация (4 уровня)
+### 3. Oracle Validation (4 levels)
 
-| Уровень | Параметр | Значение (devnet) | Описание |
-|---------|----------|-------------------|----------|
-| 1 | Staleness | 259,200 сек (3 дня) | Pyth price не старше N секунд |
-| 2 | Confidence | < 2% | Доверительный интервал Pyth |
-| 3 | Deviation | < 15% (1500 bps) | Отклонение от кэшированной цены |
-| 4 | Floor | > $1.00 | Минимальная цена актива |
+| Level | Parameter | Value (devnet) | Description |
+|-------|-----------|----------------|-------------|
+| 1 | Staleness | 259,200 sec (3 days) | Pyth price no older than N seconds |
+| 2 | Confidence | < 2% | Pyth confidence interval |
+| 3 | Deviation | < 15% (1500 bps) | Deviation from cached price |
+| 4 | Floor | > $1.00 | Minimum asset price |
 
-Если любая проверка не проходит → `StaleOracle`, `PriceBelowMinimum`, или `PriceDeviationTooLarge`.
+If any check fails → `StaleOracle`, `PriceBelowMinimum`, or `PriceDeviationTooLarge`.
 
-### 4. Расчёт динамической комиссии
+### 4. Dynamic Fee Calculation
 
-| Vault Coverage | Fee | В bps | Описание |
-|---------------|-----|-------|----------|
-| > 200% | base/2 | 2 bps | Vault здоров → скидка |
-| 150–200% | base×5 | 20 bps | Нормально |
-| 100–150% | base×10 | 40 bps | Повышенная |
-| < 100% | base×20 | 80 bps | Критическая |
+| Vault Coverage | Fee | In bps | Description |
+|---------------|-----|--------|-------------|
+| > 200% | base/2 | 2 bps | Vault is healthy → discount |
+| 150–200% | base×5 | 20 bps | Normal |
+| 100–150% | base×10 | 40 bps | Elevated |
+| < 100% | base×20 | 80 bps | Critical |
 
 Maximum: 100 bps (1%). Minimum: 1 bps.
 
@@ -102,7 +102,7 @@ Maximum: 100 bps (1%). Minimum: 1 bps.
 CPI: TokenProgram.Transfer
   from: user_usdc (ATA)
   to:   vault_usdc (PDA)
-  amount: usdc_amount (полная сумма, fee остаётся в vault)
+  amount: usdc_amount (full amount, fee stays in vault)
 ```
 
 ### 6. Mint tokens → User
@@ -111,20 +111,20 @@ CPI: TokenProgram.Transfer
 CPI: TokenProgram.MintTo
   mint:      shortsol_mint (PDA)
   to:        user_shortsol (ATA)
-  authority: mint_authority (PDA, подписывает программа)
-  amount:    tokens (рассчитано в шаге 4)
+  authority: mint_authority (PDA, signed by the program)
+  amount:    tokens (calculated in step 4)
 ```
 
 ### 7. Vault Reconciliation
 
 ```
-vault_usdc.reload()  // Перечитываем реальный баланс с chain
-require!(vault_usdc.amount >= expected)  // Проверяем что CPI не обманул
+vault_usdc.reload()  // Re-read the actual balance from chain
+require!(vault_usdc.amount >= expected)  // Verify CPI didn't cheat
 ```
 
-Если реальный баланс vault меньше ожидаемого → `InsufficientLiquidity`.
+If the actual vault balance is less than expected → `InsufficientLiquidity`.
 
-### 8. Обновление Pool State
+### 8. Pool State Update
 
 ```
 pool.circulating   += tokens
@@ -138,11 +138,11 @@ pool.last_oracle_timestamp = oracle.timestamp
 ### 9. Fee Distribution (LP)
 
 ```
-Если LP total supply > 0:
+If LP total supply > 0:
   fee_per_share += fee_amount × 1e12 / lp_total_supply
   total_lp_fees_pending += fee_amount
 
-Комиссия распределяется пропорционально LP shares.
+Fees are distributed proportionally to LP shares.
 ```
 
 ### 10. Event Emission
@@ -163,82 +163,82 @@ MintEvent {
 
 ## Slippage Protection
 
-Пользователь передаёт `min_tokens_out` — минимальное количество токенов. Если расчётное количество < min → транзакция откатывается с `SlippageExceeded`.
+The user passes `min_tokens_out` — the minimum number of tokens. If the calculated amount < min → the transaction reverts with `SlippageExceeded`.
 
 ```
-Фронтенд: min_tokens_out = expected × (1 − slippage_bps / 10000)
+Frontend: min_tokens_out = expected × (1 − slippage_bps / 10000)
 Default slippage: 1% (100 bps)
 MCP Server: 2% (200 bps)
 ```
 
 ---
 
-## Аккаунты транзакции
+## Transaction Accounts
 
-| # | Аккаунт | Тип | Описание |
-|---|---------|-----|----------|
-| 1 | `pool_state` | PDA, mut | Состояние пула |
-| 2 | `vault_usdc` | PDA, mut | USDC хранилище |
-| 3 | `shortsol_mint` | PDA, mut | Mint inverse-токена |
-| 4 | `mint_authority` | PDA | Подписант для MintTo |
+| # | Account | Type | Description |
+|---|---------|------|-------------|
+| 1 | `pool_state` | PDA, mut | Pool state |
+| 2 | `vault_usdc` | PDA, mut | USDC vault |
+| 3 | `shortsol_mint` | PDA, mut | Inverse token mint |
+| 4 | `mint_authority` | PDA | Signer for MintTo |
 | 5 | `price_update` | Account | Pyth PriceUpdateV2 |
 | 6 | `usdc_mint` | Account | USDC mint |
-| 7 | `user_usdc` | ATA, mut | USDC пользователя |
-| 8 | `user_shortsol` | ATA, mut | Inverse-токен пользователя |
-| 9 | `user` | Signer, mut | Кошелёк пользователя |
-| 10 | `funding_config` | PDA, mut, optional | Конфигурация funding |
+| 7 | `user_usdc` | ATA, mut | User's USDC |
+| 8 | `user_shortsol` | ATA, mut | User's inverse token |
+| 9 | `user` | Signer, mut | User's wallet |
+| 10 | `funding_config` | PDA, mut, optional | Funding configuration |
 | 11 | `token_program` | Program | SPL Token |
 | 12 | `system_program` | Program | System |
 
 ---
 
-## Ограничения
+## Constraints
 
-| Ограничение | Значение | Причина |
-|-------------|----------|---------|
-| Min amount | > 0 USDC | Защита от пустых транзакций |
-| Rate limit | 2 сек между операциями | Anti-sandwich |
-| Max fee | 1% (100 bps) | Caps в calc_dynamic_fee |
-| Oracle staleness | 259,200 сек (devnet) | Stock feeds на выходных |
-| Oracle deviation | 15% от кэша | Защита от манипуляции |
+| Constraint | Value | Reason |
+|------------|-------|--------|
+| Min amount | > 0 USDC | Protection against empty transactions |
+| Rate limit | 2 sec between operations | Anti-sandwich |
+| Max fee | 1% (100 bps) | Caps in calc_dynamic_fee |
+| Oracle staleness | 259,200 sec (devnet) | Stock feeds on weekends |
+| Oracle deviation | 15% from cache | Protection against manipulation |
 | Oracle confidence | < 2% | Pyth confidence check |
-| Price floor | > $1.00 | Защита от экстремального краха |
-| Funding required | Если FundingConfig exists | MEDIUM-02 fix |
+| Price floor | > $1.00 | Protection against extreme crash |
+| Funding required | If FundingConfig exists | MEDIUM-02 fix |
 
 ---
 
-## Коды ошибок (Mint)
+## Error Codes (Mint)
 
-| Код | Hex | Имя | Описание |
-|-----|-----|-----|----------|
-| 6000 | 0x1770 | Paused | Пул на паузе |
-| 6001 | 0x1771 | StaleOracle | Цена устарела или feed_id невалиден |
+| Code | Hex | Name | Description |
+|------|-----|------|-------------|
+| 6000 | 0x1770 | Paused | Pool is paused |
+| 6001 | 0x1771 | StaleOracle | Price is stale or feed_id is invalid |
 | 6002 | 0x1772 | PriceBelowMinimum | SOL < $1.00 |
-| 6003 | 0x1773 | PriceDeviationTooLarge | Отклонение > 15% |
+| 6003 | 0x1773 | PriceDeviationTooLarge | Deviation > 15% |
 | 6004 | 0x1774 | InsufficientLiquidity | Vault reconciliation failed |
 | 6005 | 0x1775 | AmountTooSmall | amount = 0 |
-| 6006 | 0x1776 | MathOverflow | Арифметическое переполнение |
+| 6006 | 0x1776 | MathOverflow | Arithmetic overflow |
 | 6007 | 0x1777 | SlippageExceeded | tokens < min_tokens_out |
-| 6010 | 0x177A | RateLimitExceeded | < 2 сек с предыдущей операции |
-| 6018 | 0x1782 | FundingConfigRequired | FundingConfig не передан |
+| 6010 | 0x177A | RateLimitExceeded | < 2 sec since previous operation |
+| 6018 | 0x1782 | FundingConfigRequired | FundingConfig not provided |
 
 ---
 
-## Вызов через MCP
+## Calling via MCP
 
 ```
-# Симуляция (без транзакции)
+# Simulation (no transaction)
 → simulate_mint { "usdc_amount": 100, "pool_id": "sol" }
 ← { "expectedOutput": "1.1748 shortSOL", "fee": "$0.02", "feePercent": "0.02%" }
 
-# Исполнение
+# Execution
 → mint { "usdc_amount": 100, "pool_id": "sol" }
 ← { "success": true, "signature": "3tAM59...", "explorer": "https://..." }
 ```
 
 ---
 
-## Вызов через Frontend
+## Calling via Frontend
 
 ```typescript
 const { mint } = useSolshort("sol");
@@ -248,12 +248,12 @@ await mint(
 );
 ```
 
-Frontend автоматически:
-1. Постит Pyth price update (PythSolanaReceiver SDK)
-2. Создаёт ATA если нужно
-3. Рассчитывает slippage protection (1%)
-4. Отправляет updatePrice + mint в одной транзакции
+The frontend automatically:
+1. Posts the Pyth price update (PythSolanaReceiver SDK)
+2. Creates the ATA if needed
+3. Calculates slippage protection (1%)
+4. Sends updatePrice + mint in a single transaction
 
 ---
 
-*Mint — единственный способ создать inverse-токены. Каждый токен обеспечен USDC в vault.*
+*Mint is the only way to create inverse tokens. Every token is backed by USDC in the vault.*
