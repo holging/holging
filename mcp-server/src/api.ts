@@ -342,6 +342,163 @@ async function handleBuildClaimUsdc(res: any, wallet: string) {
   });
 }
 
+// ─── Pool detail ─────────────────────────────────────────────────────────────
+
+async function handleGetPool(res: any, poolId: string) {
+  if (!POOLS[poolId]) { jsonResponse(res, 404, { error: `Unknown pool: ${poolId}. Valid: ${Object.keys(POOLS).join(", ")}` }); return; }
+
+  const [poolPda] = derivePoolPda(poolId);
+  const poolState: any = await (program!.account as any).poolState.fetch(poolPda);
+  const pyth = await fetchSolPrice(poolId);
+  const priceBn = new BN(pythPriceToPrecision(pyth).toString());
+  const k = new BN(poolState.k.toString());
+  const shortPrice = calcShortsolPrice(k, priceBn);
+  const circulating = new BN(poolState.circulating.toString());
+  const vaultBalance = new BN(poolState.vaultBalance.toString());
+  const dynFee = calcDynamicFee(new BN(poolState.feeBps), vaultBalance, circulating, k, priceBn);
+
+  const obligations = circulating.mul(shortPrice).div(PRICE_PRECISION).div(new BN(1000));
+  const coverage = obligations.isZero() ? "∞" : `${(vaultBalance.toNumber() / obligations.toNumber() * 100).toFixed(1)}%`;
+
+  jsonResponse(res, 200, {
+    poolId,
+    asset: getAssetName(poolId),
+    token: getPoolName(poolId),
+    assetPrice: Number(pythPriceToUsd(pyth).toFixed(2)),
+    tokenPrice: Number((shortPrice.toNumber() / 1e9).toFixed(4)),
+    k: poolState.k.toString(),
+    feeBps: poolState.feeBps,
+    dynamicFeeBps: dynFee.toNumber(),
+    circulating: circulating.toString(),
+    vaultBalance: Number((vaultBalance.toNumber() / 1e6).toFixed(2)),
+    obligations: Number((obligations.toNumber() / 1e6).toFixed(2)),
+    coverage,
+    totalMinted: poolState.totalMinted.toString(),
+    totalRedeemed: poolState.totalRedeemed.toString(),
+    totalFeesCollected: Number((poolState.totalFeesCollected.toNumber() / 1e6).toFixed(2)),
+    paused: poolState.paused,
+    lpTotalSupply: poolState.lpTotalSupply.toString(),
+    lpPrincipal: Number((poolState.lpPrincipal.toNumber() / 1e6).toFixed(2)),
+    minLpDeposit: Number((poolState.minLpDeposit.toNumber() / 1e6).toFixed(2)),
+    authority: poolState.authority.toBase58(),
+  });
+}
+
+// ─── LP Transaction Builders ─────────────────────────────────────────────────
+
+const SPL_ATA_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+
+async function handleBuildAddLiquidity(res: any, wallet: string, usdcAmount: number, poolId: string) {
+  const userPk = new PublicKey(wallet);
+  const [poolPda] = derivePoolPda(poolId);
+  const [vaultUsdc] = deriveVaultPda(USDC_MINT, poolId);
+  const [lpMint] = deriveLpMintPda(poolId);
+  const [lpPosition] = deriveLpPositionPda(userPk, poolId);
+  const userUsdc = await getAssociatedTokenAddress(USDC_MINT, userPk);
+  const userLpAta = await getAssociatedTokenAddress(lpMint, userPk);
+  const usdcLamports = new BN(Math.round(usdcAmount * 1e6));
+
+  const tx = new Transaction();
+
+  const addLiqIx = await (program!.methods as any)
+    .addLiquidity(poolId, usdcLamports)
+    .accounts({
+      poolState: poolPda, vaultUsdc, lpMint, lpPosition,
+      lpProviderLpAta: userLpAta, usdcMint: USDC_MINT,
+      lpProviderUsdc: userUsdc, lpProvider: userPk,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      associatedTokenProgram: SPL_ATA_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  tx.add(addLiqIx);
+
+  const serialized = await serializeTx(tx, userPk);
+
+  jsonResponse(res, 200, {
+    tx: serialized,
+    action: "add_liquidity",
+    poolId,
+    usdcAmount,
+    message: `Sign and send to deposit $${usdcAmount} USDC as LP in ${getPoolName(poolId)} pool`,
+    howToSign: "Base64-decode 'tx', sign with your wallet, send via sendRawTransaction",
+  });
+}
+
+async function handleBuildRemoveLiquidity(res: any, wallet: string, lpShares: number, poolId: string) {
+  const userPk = new PublicKey(wallet);
+  const [poolPda] = derivePoolPda(poolId);
+  const [vaultUsdc] = deriveVaultPda(USDC_MINT, poolId);
+  const [lpMint] = deriveLpMintPda(poolId);
+  const [lpPosition] = deriveLpPositionPda(userPk, poolId);
+  const userUsdc = await getAssociatedTokenAddress(USDC_MINT, userPk);
+  const userLpAta = await getAssociatedTokenAddress(lpMint, userPk);
+  const sharesBn = new BN(Math.round(lpShares));
+
+  const priceAccount = await postPriceAndGetAccount(poolId);
+
+  const tx = new Transaction();
+
+  const updateIx = await (program!.methods as any)
+    .updatePrice(poolId)
+    .accounts({ poolState: poolPda, pythPrice: priceAccount, payer: userPk })
+    .instruction();
+  tx.add(updateIx);
+
+  const removeLiqIx = await (program!.methods as any)
+    .removeLiquidity(poolId, sharesBn)
+    .accounts({
+      poolState: poolPda, vaultUsdc, lpMint, lpPosition,
+      lpProviderLpAta: userLpAta, usdcMint: USDC_MINT,
+      lpProviderUsdc: userUsdc, priceUpdate: priceAccount,
+      lpProvider: userPk, tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  tx.add(removeLiqIx);
+
+  const serialized = await serializeTx(tx, userPk);
+
+  jsonResponse(res, 200, {
+    tx: serialized,
+    action: "remove_liquidity",
+    poolId,
+    lpShares,
+    message: `Sign and send to withdraw LP shares from ${getPoolName(poolId)} pool`,
+    howToSign: "Base64-decode 'tx', sign with your wallet, send via sendRawTransaction",
+  });
+}
+
+async function handleBuildClaimLpFees(res: any, wallet: string, poolId: string) {
+  const userPk = new PublicKey(wallet);
+  const [poolPda] = derivePoolPda(poolId);
+  const [vaultUsdc] = deriveVaultPda(USDC_MINT, poolId);
+  const [lpPosition] = deriveLpPositionPda(userPk, poolId);
+  const userUsdc = await getAssociatedTokenAddress(USDC_MINT, userPk);
+
+  const tx = new Transaction();
+
+  const claimIx = await (program!.methods as any)
+    .claimLpFees(poolId)
+    .accounts({
+      poolState: poolPda, vaultUsdc, lpPosition,
+      usdcMint: USDC_MINT, lpProviderUsdc: userUsdc,
+      lpProvider: userPk, tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction();
+  tx.add(claimIx);
+
+  const serialized = await serializeTx(tx, userPk);
+
+  jsonResponse(res, 200, {
+    tx: serialized,
+    action: "claim_lp_fees",
+    poolId,
+    message: `Sign and send to claim accumulated LP fees from ${getPoolName(poolId)} pool`,
+    howToSign: "Base64-decode 'tx', sign with your wallet, send via sendRawTransaction",
+  });
+}
+
 // ─── HTTP Server ─────────────────────────────────────────────────────────────
 
 const server = createServer(async (req, res) => {
@@ -365,16 +522,20 @@ const server = createServer(async (req, res) => {
         jsonResponse(res, 200, {
           status: "ok",
           server: "holging-tx-builder",
-          version: "1.0.0",
+          version: "1.1.0",
           network: "devnet",
           endpoints: {
-            "GET /prices": "All pool prices",
-            "GET /position?wallet=...&pool=sol": "Wallet balances",
-            "GET /simulate/mint?amount=100&pool=sol": "Preview mint",
-            "GET /simulate/redeem?amount=1.5&pool=sol": "Preview redeem",
-            "POST /build/mint": "Build unsigned mint tx",
-            "POST /build/redeem": "Build unsigned redeem tx",
-            "POST /build/claim_usdc": "Build unsigned faucet claim tx",
+            "GET  /prices": "All pool prices",
+            "GET  /pool/:id": "Detailed pool state (sol, tsla, spy, aapl)",
+            "GET  /position?wallet=...&pool=sol": "Wallet balances",
+            "GET  /simulate/mint?amount=100&pool=sol": "Preview mint",
+            "GET  /simulate/redeem?amount=1.5&pool=sol": "Preview redeem",
+            "POST /build/mint": "Build unsigned mint tx { wallet, amount, pool? }",
+            "POST /build/redeem": "Build unsigned redeem tx { wallet, amount, pool? }",
+            "POST /build/claim_usdc": "Build unsigned faucet claim tx { wallet }",
+            "POST /build/add_liquidity": "Build unsigned LP deposit tx { wallet, amount, pool? }",
+            "POST /build/remove_liquidity": "Build unsigned LP withdraw tx { wallet, lp_shares, pool? }",
+            "POST /build/claim_lp_fees": "Build unsigned LP fee claim tx { wallet, pool? }",
           },
         });
         return;
@@ -382,6 +543,13 @@ const server = createServer(async (req, res) => {
 
       if (url.pathname === "/prices") {
         await handleGetPrices(res);
+        return;
+      }
+
+      // /pool/:id
+      const poolMatch = url.pathname.match(/^\/pool\/(\w+)$/);
+      if (poolMatch) {
+        await handleGetPool(res, poolMatch[1]);
         return;
       }
 
@@ -453,6 +621,27 @@ const server = createServer(async (req, res) => {
         await handleBuildClaimUsdc(res, wallet);
         return;
       }
+
+      if (url.pathname === "/build/add_liquidity") {
+        const { wallet, amount, pool } = body;
+        if (!wallet || !amount) { jsonResponse(res, 400, { error: "Need { wallet, amount, pool? }" }); return; }
+        await handleBuildAddLiquidity(res, wallet, amount, pool || "sol");
+        return;
+      }
+
+      if (url.pathname === "/build/remove_liquidity") {
+        const { wallet, lp_shares, pool } = body;
+        if (!wallet || !lp_shares) { jsonResponse(res, 400, { error: "Need { wallet, lp_shares, pool? }" }); return; }
+        await handleBuildRemoveLiquidity(res, wallet, lp_shares, pool || "sol");
+        return;
+      }
+
+      if (url.pathname === "/build/claim_lp_fees") {
+        const { wallet, pool } = body;
+        if (!wallet) { jsonResponse(res, 400, { error: "Need { wallet, pool? }" }); return; }
+        await handleBuildClaimLpFees(res, wallet, pool || "sol");
+        return;
+      }
     }
 
     jsonResponse(res, 404, { error: "Not found. GET / for available endpoints." });
@@ -463,8 +652,9 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🔨 Holging Transaction Builder API running on http://0.0.0.0:${PORT}`);
+  console.log(`🔨 Holging Transaction Builder API v1.1.0 on http://0.0.0.0:${PORT}`);
   console.log(`   Network: devnet | Pools: ${Object.keys(POOLS).length}`);
-  console.log(`   GET  /prices, /position, /simulate/mint, /simulate/redeem`);
+  console.log(`   GET  /prices, /pool/:id, /position, /simulate/mint, /simulate/redeem`);
   console.log(`   POST /build/mint, /build/redeem, /build/claim_usdc`);
+  console.log(`   POST /build/add_liquidity, /build/remove_liquidity, /build/claim_lp_fees`);
 });
