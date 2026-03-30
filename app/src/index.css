@@ -1189,6 +1189,7 @@ header.header {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-4);
+  margin-bottom: var(--space-4);
 }
 
 .risk-section:last-child { margin-bottom: 0; }
