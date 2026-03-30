@@ -7,11 +7,11 @@ import BN from "bn.js";
 const STRESS_DROPS = [0.1, 0.25, 0.5];
 
 function fmtUsdc(val: number): string {
-  return "$" + val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return "$" + val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtNum(val: number, digits = 4): string {
-  return val.toLocaleString(undefined, { maximumFractionDigits: digits });
+  return val.toLocaleString("en-US", { maximumFractionDigits: digits });
 }
 
 export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
@@ -52,11 +52,14 @@ export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
   let breakerBuffer = 0;
   if (circulating > 0 && solPriceUsd && vaultBalance > 0) {
     const kNum = Number(pool.k) / 1e9;
-    breakerPrice = (0.95 * circulating * kNum) / (vaultBalance / 1e3);
-    breakerDrop = solPriceUsd > 0 ? ((breakerPrice - solPriceUsd) / solPriceUsd) * 100 : 0;
+    // At breaker: vault_ratio = vaultBalance / (circulating * k / sol_price) = 0.95
+    // sol_price_breaker = 0.95 * circulating * kNum / vaultBalance
+    breakerPrice = (0.95 * circulating * kNum) / vaultBalance;
+    breakerDrop = solPriceUsd > 0 ? ((breakerPrice / solPriceUsd) - 1) * 100 : 0;
     breakerBuffer = vaultBalance - obligations * 0.95;
   }
-  const breakerStatus = breakerDrop < -50 ? "SAFE" : breakerDrop < -20 ? "WARNING" : "DANGER";
+  // breakerDrop < 0 means SOL must drop to trigger (safe); > 0 means already breached
+  const breakerStatus = breakerDrop < -50 ? "SAFE" : breakerDrop < -20 ? "SAFE" : breakerDrop < 0 ? "WARNING" : "DANGER";
   const breakerStatusClass = breakerStatus === "SAFE" ? "vault-green" : breakerStatus === "WARNING" ? "vault-yellow" : "vault-red";
 
   // Dynamic fee
@@ -78,9 +81,10 @@ export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
   const stressResults = STRESS_DROPS.map((drop) => {
     if (!solPriceUsd || circulating === 0) return { drop, ratio: coverageRatio, status: "—" };
     const newSol = solPriceUsd * (1 - drop);
-    const newShortsolPrice = (Number(pool.k) / 1e9) * 1e9 / (newSol * 1e9) * 1e9;
-    const newObligations = circulating * newShortsolPrice / 1e9;
-    const ratio = newObligations > 0 ? (vaultBalance / (newObligations / 1e3)) * 100 : 100;
+    const kNum = Number(pool.k) / 1e9;
+    const newShortsolUsd = kNum / newSol;
+    const newObligations = circulating * newShortsolUsd;
+    const ratio = newObligations > 0 ? (vaultBalance / newObligations) * 100 : 100;
     return { drop, ratio, status: ratio >= 95 ? "OK" : "BREAK" };
   });
 
@@ -105,7 +109,7 @@ export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
           <>
             <div className="risk-row"><span>Status</span><span className={breakerStatusClass}>{breakerStatus}</span></div>
             <div className="risk-row"><span>Trigger SOL Price</span><span>{fmtUsdc(breakerPrice)}</span></div>
-            <div className="risk-row"><span>Distance</span><span>{fmtNum(breakerDrop, 1)}%</span></div>
+            <div className="risk-row"><span>SOL must drop</span><span>{breakerDrop < 0 ? fmtNum(Math.abs(breakerDrop), 1) + "%" : "Already breached"}</span></div>
             <div className="risk-row"><span>Buffer</span><span>{fmtUsdc(Math.max(breakerBuffer, 0))}</span></div>
           </>
         ) : (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useConnection, useAnchorWallet } from "@solana/wallet-adapter-react";
-import { getProgram, derivePoolPda } from "../utils/program";
+import { getProgram, getReadOnlyProgram, derivePoolPda } from "../utils/program";
 import { DEFAULT_POOL_ID } from "../config/pools";
 import BN from "bn.js";
 
@@ -37,12 +37,10 @@ export function usePool(poolId: string = DEFAULT_POOL_ID, intervalMs = 15_000) {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!wallet) {
-      setLoading(false);
-      return;
-    }
     try {
-      const program = getProgram(connection, wallet);
+      const program = wallet
+        ? getProgram(connection, wallet)
+        : getReadOnlyProgram(connection);
       const [poolPda] = derivePoolPda(poolId);
       const account = await (program.account as any).poolState.fetch(poolPda);
       setPool({

@@ -27,6 +27,21 @@ export function getProgram(connection: Connection, wallet: AnchorWallet) {
   return new Program(IDL as any, provider);
 }
 
+/** Read-only program instance — no wallet required */
+export function getReadOnlyProgram(connection: Connection) {
+  const provider = new AnchorProvider(
+    connection,
+    // Dummy wallet for read-only operations
+    {
+      publicKey: PublicKey.default,
+      signTransaction: () => Promise.reject(new Error("Read-only")),
+      signAllTransactions: () => Promise.reject(new Error("Read-only")),
+    } as any,
+    { commitment: "confirmed" },
+  );
+  return new Program(IDL as any, provider);
+}
+
 export function derivePoolPda(poolId: string = DEFAULT_POOL_ID): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [POOL_SEED, Buffer.from(poolId)],
