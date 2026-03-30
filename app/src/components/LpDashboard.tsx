@@ -139,15 +139,38 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint, poolId 
   // Vault APY estimate: funding rate (10 bps/day) is the primary LP income source
   // Compound: 1 - (1 - 0.001)^365 ≈ 30.6% + trading fee revenue
   const vaultApyPct = (() => {
-    // Funding rate APY: ~30.6% base from k-decay (10 bps/day)
-    const fundingApyBase = (1 - Math.pow(1 - 0.001, 365)) * 100;
-    if (!pool?.totalFeesCollected || !pool?.lpPrincipal) return fundingApyBase;
+    if (!pool?.lpPrincipal || !pool?.totalFeesCollected) return 0;
     const principal = new BN(pool.lpPrincipal.toString()).toNumber() / 1e6;
-    if (principal <= 0) return fundingApyBase;
-    // Add trading fee component if meaningful data exists
+    if (principal <= 0) return 0;
+
+    // === Реальный APY на основе фактических данных ===
+
+    // 1. Trading fees earned by LP (already accumulated)
     const lpFeesPending = new BN(pool.totalLpFeesPending?.toString() || "0").toNumber() / 1e6;
-    const feeBoost = principal > 0 ? (lpFeesPending / principal) * 365 * 100 : 0;
-    return fundingApyBase + Math.min(feeBoost, 100); // cap fee boost at 100%
+    const totalFees = new BN(pool.totalFeesCollected.toString()).toNumber() / 1e6;
+
+    // 2. Funding rate component (k-decay benefit to LP)
+    // Funding rate = 10 bps/day on obligations, not on vault
+    // Real yield depends on utilization: obligations / lp_principal
+    const circulating = Number(pool.circulating) / 1e9;
+    const kNum = Number(pool.k) / 1e9;
+    const lastPrice = Number(pool.lastOraclePrice) / 1e9;
+    const obligations = lastPrice > 0 ? circulating * kNum / lastPrice : 0;
+    const utilization = principal > 0 ? obligations / principal : 0;
+
+    // Funding APY scaled by utilization: base_rate × utilization
+    // At 100% utilization → 30.6% APY; at 1% utilization → 0.31% APY
+    const fundingRateBpsPerDay = 10; // from constants.rs
+    const fundingApyBase = (1 - Math.pow(1 - fundingRateBpsPerDay / 10000, 365)) * 100;
+    const fundingApy = fundingApyBase * Math.min(utilization, 1);
+
+    // 3. Fee-based APY (extrapolate current pending fees to annual)
+    // Use total fees as proxy — simple annualization
+    const feeApy = principal > 0 && totalFees > 0
+      ? (lpFeesPending / principal) * 365 * 100  // rough annualization
+      : 0;
+
+    return fundingApy + Math.min(feeApy, 200);
   })();
 
   // Deposit preview: USDC → LP shares
@@ -285,7 +308,22 @@ export function LpDashboard({ pool, solPriceUsd: _solPriceUsd, usdcMint, poolId 
                 : formatUsdc(pendingFeesBn)}
             </span>
           </div>
-          <div className="lp-metric">
+          <div className="lp-metric" title={`Funding: ${((() => {
+            const c = Number(pool?.circulating || 0) / 1e9;
+            const k = Number(pool?.k || 0) / 1e9;
+            const p = Number(pool?.lastOraclePrice || 0) / 1e9;
+            const pr = new BN(pool?.lpPrincipal?.toString() || "0").toNumber() / 1e6;
+            const obl = p > 0 ? c * k / p : 0;
+            const util = pr > 0 ? obl / pr : 0;
+            return ((1 - Math.pow(0.999, 365)) * 100 * Math.min(util, 1)).toFixed(2);
+          })())}% (utilization ${((() => {
+            const c = Number(pool?.circulating || 0) / 1e9;
+            const k = Number(pool?.k || 0) / 1e9;
+            const p = Number(pool?.lastOraclePrice || 0) / 1e9;
+            const pr = new BN(pool?.lpPrincipal?.toString() || "0").toNumber() / 1e6;
+            const obl = p > 0 ? c * k / p : 0;
+            return pr > 0 ? (obl / pr * 100).toFixed(1) : "0";
+          })())}%) + Fees`}>
             <span className="lp-metric-label">Vault APY</span>
             <span className="lp-metric-value">
               {vaultApyPct !== null ? (
