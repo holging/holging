@@ -170,7 +170,13 @@ function App() {
       </main>
 
       <footer>
-        <p>Holging Protocol - Devnet</p>
+        <p>
+          Holging Protocol — Devnet
+          <span className="footer-sep">·</span>
+          <a href="https://github.com/holging" target="_blank" rel="noopener noreferrer" className="footer-link">GitHub</a>
+          <span className="footer-sep">·</span>
+          <a href="https://github.com/holging/docs" target="_blank" rel="noopener noreferrer" className="footer-link">Docs</a>
+        </p>
       </footer>
     </div>
   );

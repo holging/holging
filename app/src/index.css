@@ -949,6 +949,21 @@ footer {
   letter-spacing: 0.04em;
 }
 
+.footer-sep {
+  margin: 0 var(--space-2);
+  opacity: 0.4;
+}
+
+.footer-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.footer-link:hover {
+  color: var(--accent);
+}
+
 /* ── Wallet Button Override ────────────────────────────────────────────────── */
 .wallet-adapter-button {
   background: var(--accent) !important;
