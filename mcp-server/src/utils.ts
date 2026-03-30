@@ -129,15 +129,31 @@ export function calcDynamicFee(
   k: BN,
   solPrice: BN,
 ): BN {
-  if (circulating.isZero()) return baseFee;
+  if (circulating.isZero() || solPrice.isZero()) return baseFee;
   const shortsolPrice = calcShortsolPrice(k, solPrice);
   const obligations = circulating.mul(shortsolPrice).div(PRICE_PRECISION);
   const obligationsUsdc = obligations.div(new BN(1000)); // 1e9 → 1e6
   if (obligationsUsdc.isZero()) return baseFee;
-  const ratio = vaultBalance.mul(BPS_DENOMINATOR).div(obligationsUsdc);
-  if (ratio.gt(new BN(20_000))) return baseFee; // >200% → base fee
-  if (ratio.gt(new BN(10_000))) return baseFee.mul(new BN(2)); // 100-200% → 2x
-  return baseFee.mul(new BN(5)); // <100% → 5x
+  const ratioBps = vaultBalance.mul(BPS_DENOMINATOR).div(obligationsUsdc);
+  const ratio = ratioBps.toNumber();
+
+  let fee: number;
+  if (ratio > 20_000) {
+    // > 200% — vault very healthy
+    fee = Math.floor(baseFee.toNumber() / 2);
+  } else if (ratio > 15_000) {
+    // 150-200% — normal
+    fee = baseFee.toNumber() * 5;
+  } else if (ratio > 10_000) {
+    // 100-150% — elevated
+    fee = baseFee.toNumber() * 10;
+  } else {
+    // < 100% — critical
+    fee = baseFee.toNumber() * 20;
+  }
+
+  // Clamp to max 100 bps (1%), min 1 bps
+  return new BN(Math.max(Math.min(fee, 100), 1));
 }
 
 export function calcMintTokens(
