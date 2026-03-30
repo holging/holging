@@ -1,21 +1,16 @@
 {
-  "name": "holging-mcp-server",
-  "version": "2.0.0",
-  "description": "MCP server for Holging protocol — full trading, LP, and analytics for AI agents",
+  "name": "holging-api",
+  "version": "1.1.0",
+  "description": "Holging Transaction Builder API — unsigned Solana transactions for AI agents",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/api.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "start:http": "node dist/http.js",
-    "start:api": "node dist/api.js",
-    "dev": "tsc && node dist/index.js",
-    "dev:http": "tsc && node dist/http.js",
-    "dev:api": "tsc && node dist/api.js"
+    "start": "node dist/api.js",
+    "dev": "tsc && node dist/api.js"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
-    "@modelcontextprotocol/sdk": "^1.28.0",
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
     "bn.js": "^5.2.3"
