@@ -97,7 +97,7 @@ SOL = $170  →  shortSOL = 7197715091917 × 1e9 / (170 × 1e9) = $42.34
 User → USDC → Protocol → shortSOL
 
 Example: 100 USDC → ~1.17 shortSOL (at SOL = $84)
-  - Fee: 0.04% = $0.04
+  - Fee: 0.20% = $0.20
   - To vault: +$99.96
   - Tokens sent to wallet
 ```
@@ -108,7 +108,7 @@ Example: 100 USDC → ~1.17 shortSOL (at SOL = $84)
 User → shortSOL → Protocol → USDC
 
 Example: 1.0 shortSOL → ~$85.67 USDC (at SOL = $84)
-  - Fee: 0.04% = $0.03
+  - Fee: 0.20% = $0.15
   - From vault: -$85.67
 ```
 
@@ -123,17 +123,18 @@ All mint/redeem transactions include `min_tokens_out` / `min_usdc_out` — if th
 | Parameter | Value |
 |----------|----------|
 | **Base fee** | 4 bps (0.04%) |
-| **Dynamic fee** | 4–20 bps (depends on vault health) |
-| **Roundtrip** | 0.08% (mint + redeem) |
+| **Dynamic fee** | 20–80 bps (depends on vault health) |
+| **Roundtrip** | 0.40% (mint + redeem) |
 | **Fee distribution** | To vault → LP providers |
 
 ### Dynamic Fee Scale
 
 | Vault Coverage | Fee |
 |---------------|-----|
-| > 200% | 0.04% (base) |
-| 100–200% | 0.08% (2x) |
-| < 100% | 0.20% (5x) |
+| > 200% | 0.20% (×5) |
+| 150–200% | 0.40% (×10) |
+| 100–150% | 0.60% (×15) |
+| < 100% | 0.80% (×20) |
 
 ---
 
@@ -187,7 +188,7 @@ By the AM-GM inequality: `V(x) = (x + 1/x) / 2 ≥ 1` for any x > 0.
 | +50% | +8.3% | +$833 |
 | +100% | +25.0% | +$2,500 |
 
-**Break-even**: SOL ±4% to cover the 0.08% roundtrip fee.
+**Break-even**: SOL ±9% to cover the 0.40% roundtrip fee.
 
 ---
 

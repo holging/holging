@@ -294,13 +294,13 @@ $$
 \text{Real P\&L} = \frac{(x-1)^2}{2x} - 2 \times \text{fee\_roundtrip} - \text{gas}
 $$
 
-With fee_bps = 4: roundtrip cost = 0.08%. Break-even requires:
+With base fee_bps = 4 and ×5 multiplier at healthy vault: roundtrip cost = 0.40%. Break-even requires:
 
 $$
 \frac{(x-1)^2}{2x} > 0.0008
 $$
 
-Approximately: SOL must move ±4% for profit after fees.
+Approximately: SOL must move ±9% for profit after fees.
 
 ---
 
@@ -492,7 +492,7 @@ All integer divisions round down (floor). In both mint and redeem, rounding favo
 
 ### 13.4 Fees vs Holging Profit
 
-Roundtrip fee = 0.08%. For small SOL moves:
+Roundtrip fee = 0.40%. For small SOL moves:
 
 $$
 \text{P\&L}(1 + \epsilon) \approx \frac{\epsilon^2}{2} \quad \text{(Taylor expansion)}

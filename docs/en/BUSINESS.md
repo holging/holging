@@ -7,7 +7,7 @@
 
 ## 1. Executive Summary
 
-Holging is a tokenized inverse-exposure protocol on Solana that issues **shortSOL** — an SPL token priced at `k / SOL_price` — giving holders perpetual, liquidation-free short exposure to SOL without margin, funding rate payments, or daily rebalancing. The protocol's **Holging strategy** (50% SOL + 50% shortSOL) is mathematically guaranteed by the AM-GM inequality to be profitable in *any* price direction, functioning as a perpetual straddle with zero theta decay and zero premium. Revenue flows from a 4 bps/side base fee (dynamic up to 80 bps under vault stress) and a 10 bps/day k-decay funding rate (~30.6% annualised compound), which together generate LP APY of **37–40%** across conservative-to-aggressive volume scenarios. With no direct competitor implementing a multiplicative 1/x inverse token on Solana (verified across 5,400+ Colosseum projects), Holging targets the $2B Solana perps market as the "ProShares Short S&P 500 for crypto."
+Holging is a tokenized inverse-exposure protocol on Solana that issues **shortSOL** — an SPL token priced at `k / SOL_price` — giving holders perpetual, liquidation-free short exposure to SOL without margin, funding rate payments, or daily rebalancing. The protocol's **Holging strategy** (50% SOL + 50% shortSOL) is mathematically guaranteed by the AM-GM inequality to be profitable in *any* price direction, functioning as a perpetual straddle with zero theta decay and zero premium. Revenue flows from a dynamic fee (20 bps/side at healthy vault, up to 80 bps under vault stress; base fee 4 bps) and a 10 bps/day k-decay funding rate (~30.6% annualised compound), which together generate LP APY of **65–73%** across conservative-to-aggressive volume scenarios. With no direct competitor implementing a multiplicative 1/x inverse token on Solana (verified across 5,400+ Colosseum projects), Holging targets the $2B Solana perps market as the "ProShares Short S&P 500 for crypto."
 
 ---
 
@@ -40,20 +40,20 @@ P&L(x) = (x − 1)² / (2x) ≥ 0
 
 where `x = P(t) / P(0)` is the SOL price multiplier. The portfolio is **delta-neutral at entry** (first derivative = 0 at x=1) and has **positive gamma everywhere** (second derivative > 0 for all P > 0).
 
-| SOL Move | Holging P&L (gross) | Net (after 0.08% fee) | On $10,000 |
+| SOL Move | Holging P&L (gross) | Net (after 0.40% fee) | On $10,000 |
 |----------|--------------------|-----------------------|------------|
-| −90%     | +405.00%           | +404.92%              | +$40,492   |
-| −50%     | +25.00%            | +24.92%               | +$2,492    |
-| −25%     | +4.17%             | +4.09%                | +$409      |
-| −10%     | +0.56%             | +0.48%                | +$48       |
-| 0%       | 0.00%              | −0.08%                | −$8        |
-| +10%     | +0.45%             | +0.37%                | +$37       |
-| +25%     | +2.50%             | +2.42%                | +$242      |
-| +50%     | +8.33%             | +8.25%                | +$825      |
-| +100%    | +25.00%            | +24.92%               | +$2,492    |
-| +200%    | +66.67%            | +66.59%               | +$6,659    |
+| −90%     | +405.00%           | +404.60%              | +$40,460   |
+| −50%     | +25.00%            | +24.60%               | +$2,460    |
+| −25%     | +4.17%             | +3.77%                | +$377      |
+| −10%     | +0.56%             | +0.16%                | +$16       |
+| 0%       | 0.00%              | −0.40%                | −$40       |
+| +10%     | +0.45%             | +0.05%                | +$5        |
+| +25%     | +2.50%             | +2.10%                | +$210      |
+| +50%     | +8.33%             | +7.93%                | +$793      |
+| +100%    | +25.00%            | +24.60%               | +$2,460    |
+| +200%    | +66.67%            | +66.27%               | +$6,627    |
 
-> Source: `P&L = (x-1)²/(2x)` from SOLSHORT_MATH.md §7.3; fee breakeven at `|x-1| > 4%`
+> Source: `P&L = (x-1)²/(2x)` from SOLSHORT_MATH.md §7.3; fee breakeven at `|x-1| > ~9%`
 
 ### Inverse Exposure Without Liquidation
 
@@ -77,9 +77,10 @@ DEFAULT_FEE_BPS = 4    // constants.rs line 30
 | Metric | Value |
 |--------|-------|
 | Fee per side (base) | 4 bps = 0.04% |
-| Roundtrip fee (normal health) | 4 bps = 0.04% |
-| Effective bid-ask spread | 8 bps = 0.08% |
-| Break-even SOL move (Holging) | ±4% |
+| Dynamic fee per side (healthy vault >200%) | 20 bps = 0.20% |
+| Roundtrip fee (healthy vault >200%) | 40 bps = 0.40% |
+| Effective bid-ask spread | 40 bps = 0.40% |
+| Break-even SOL move (Holging) | ±9% |
 
 ### 3.2 Dynamic Fee Schedule
 
@@ -87,9 +88,9 @@ Derived from `calc_dynamic_fee()` in `fees.rs` — multipliers applied to `DEFAU
 
 | Vault Health Ratio | Multiplier | Per-Side Fee | Roundtrip | Use Case |
 |-------------------|-----------|-------------|-----------|----------|
-| > 200% (healthy)  | ×0.5      | **2 bps**   | 4 bps (0.04%)   | Attract volume |
-| 150–200% (normal) | ×5        | **20 bps**  | 40 bps (0.40%)  | Standard operation |
-| 100–150% (elevated)| ×10      | **40 bps**  | 80 bps (0.80%)  | Stress pricing |
+| > 200% (healthy)  | ×5        | **20 bps**  | 40 bps (0.40%)   | Standard operation |
+| 150–200% (normal) | ×10       | **40 bps**  | 80 bps (0.80%)   | Elevated pricing |
+| 100–150% (elevated)| ×15      | **60 bps**  | 120 bps (1.20%)  | Stress pricing |
 | < 100% (critical) | ×20       | **80 bps**  | 160 bps (1.60%) | Emergency brake |
 
 > Source: `fees.rs` lines 59–71; clamped to max 100 bps per side
@@ -133,30 +134,30 @@ From `fees.rs` `accumulate_fee()` and `settle_lp_fees()`:
 
 - **Trading fee APY** = `(daily_volume × roundtrip_fee_bps / 10,000 × 365) / TVL`
 - **Funding APY** = `(TVL × 0.001 × 365) / TVL = 36.50%` (constant — independent of volume)
-- Normal vault health assumed (>200% ratio) → 4 bps roundtrip fee
+- Normal vault health assumed (>200% ratio) → 40 bps roundtrip fee
 - All revenue attributed to LP providers (100% fee share per `accumulate_fee()`)
 
 ### Scenario Results
 
 | Scenario | TVL | Daily Volume | Annual Fee Rev | Annual Funding Rev | Fee APY | Funding APY | **NET APY** |
 |----------|-----|-------------|---------------|-------------------|---------|-------------|------------|
-| **Conservative** | $100K | $10K | $1,460 | $36,500 | 1.46% | 36.50% | **37.96%** |
-| **Moderate** | $500K | $100K | $14,600 | $182,500 | 2.92% | 36.50% | **39.42%** |
-| **Aggressive** | $2M | $500K | $73,000 | $730,000 | 3.65% | 36.50% | **40.15%** |
+| **Conservative** | $500K | $100K | $146,000 | $182,500 | 29.20% | 36.50% | **65.70%** |
+| **Moderate** | $1M | $250K | $365,000 | $365,000 | 36.50% | 36.50% | **73.00%** |
+| **Aggressive** | $2M | $500K | $730,000 | $730,000 | 36.50% | 36.50% | **73.00%** |
 
 ### Key Insight
 
-Funding APY (36.5%) dominates across all scenarios — it is a **floor yield** independent of volume, driven purely by the 10 bps/day k-decay rate. Fee APY is volume-driven upside. This makes Holging's LP proposition unusual: even with zero trading volume, LPs earn ~36.5% APY from the funding mechanism.
+Funding APY (36.5%) is the **floor yield** independent of volume, driven purely by the 10 bps/day k-decay rate. Fee APY is volume-driven upside at 40 bps roundtrip (healthy vault). This makes Holging's LP proposition unusual: even with zero trading volume, LPs earn ~36.5% APY from the funding mechanism. With trading activity, total APY reaches **65–73%**.
 
 **Important caveat**: Funding APY assumes the vault is the primary beneficiary of k-decay. In practice, this manifests as reduced shortSOL obligations over time — LPs withdrawing after 1 year receive more USDC per share than deposited, reflecting the accumulated funding surplus.
 
-### Stress Scenario (vault ratio 150–200%, 40 bps roundtrip)
+### Stress Scenario (vault ratio 150–200%, 80 bps roundtrip)
 
-| Scenario | Fee APY at 40 bps | Funding APY | NET APY |
+| Scenario | Fee APY at 80 bps | Funding APY | NET APY |
 |----------|------------------|-------------|---------|
-| Conservative | 14.6% | 36.5% | **51.1%** |
-| Moderate | 29.2% | 36.5% | **65.7%** |
-| Aggressive | 36.5% | 36.5% | **73.0%** |
+| Conservative | 58.4% | 36.5% | **94.9%** |
+| Moderate | 73.0% | 36.5% | **109.5%** |
+| Aggressive | 73.0% | 36.5% | **109.5%** |
 
 Under moderate stress, higher fees dramatically amplify LP returns — creating strong incentive for new LP deposits that restore vault health.
 
@@ -178,7 +179,7 @@ Under moderate stress, higher fees dramatically amplify LP returns — creating 
 1. **Zero liquidation** — no margin system, no forced unwinding, no cascading liquidations
 2. **Zero volatility decay** — the 1/x model has no path dependency unlike daily-rebalanced leveraged tokens
 3. **Zero slippage** — oracle-based pricing regardless of trade size (vs depth-dependent DEX pricing)
-4. **Lowest base fee** — 0.04% roundtrip at healthy vault health vs 0.1–0.5% for perp DEXes
+4. **Competitive fee** — 0.40% roundtrip at healthy vault health vs 0.1–0.5% for perp DEXes
 5. **Holging strategy** — unique IP (8 Lean 4 theorems); no competitor offers a mathematically guaranteed positive-convexity portfolio
 6. **Formally verified** — Lean 4 proofs of 8 core theorems; no Solana DeFi protocol has published machine-checked proofs
 
@@ -199,7 +200,7 @@ Ethena generates yield by delta-hedging stETH with ETH short perps, earning the 
 | **SOM (Year 1)**: Retail hedging + Holging | $50M TVL target | 2.5% of Solana perps market |
 
 At $50M TVL and $5M daily volume:
-- Annual fee revenue: `$5M × 0.04% × 365 = $730K`
+- Annual fee revenue: `$5M × 0.40% × 365 = $7.3M`
 - Annual funding revenue: `$50M × 36.5% = $18.25M` (k-decay to LP)
 - Combined LP APY: ~37–40%
 
@@ -299,7 +300,7 @@ The vault must be overcollateralized *before* users can mint. With $500K seed ro
 - Mainnet deployment with $200K initial vault liquidity
 - Whitelist LP system: 10–20 strategic LP partners (market makers, DAO treasuries)
 - Target: $500K TVL, $50K daily volume within 60 days
-- Fee parameter: start at 4 bps/side, tighten to 2 bps if vault health > 200%
+- Fee parameter: start at 4 bps base (20 bps/side effective at healthy vault)
 - Metrics: vault ratio, daily volume, unique wallets, Holging TVL
 
 ### Phase 3: Integrations + Ecosystem (Q3 2026)
@@ -309,7 +310,7 @@ The vault must be overcollateralized *before* users can mint. With $500K seed ro
 - **Holging Vault** — auto-rebalancing smart contract (50/50 SOL/shortSOL, auto-compound)
 - **Analytics dashboard** — public vault health, volume, fees, Holging P&L tracker
 - Target: $2M TVL, $300K daily volume
-- Expected LP APY at target: ~39% (fee 3.65% + funding 36.5%)
+- Expected LP APY at target: ~73% (fee 36.5% + funding 36.5%)
 
 ### Phase 4: Multi-Asset Expansion (Q4 2026)
 
@@ -318,7 +319,7 @@ The vault must be overcollateralized *before* users can mint. With $500K seed ro
 - **Solafon Mini App** — mobile-first Holging for Telegram/Solafon users
 - **CEX listings** for shortSOL token
 - Target: $10M TVL across 4 assets, $1M daily volume
-- At target: ~$730K/year fee revenue + $3.65M funding revenue across all pools
+- At target: ~$7.3M/year fee revenue + $3.65M funding revenue across all pools
 
 ---
 
@@ -326,7 +327,7 @@ The vault must be overcollateralized *before* users can mint. With $500K seed ro
 
 | Constant | Value | Meaning |
 |----------|-------|---------|
-| `DEFAULT_FEE_BPS` | 4 | 0.04% per side base fee |
+| `DEFAULT_FEE_BPS` | 4 | 0.04% base fee; ×5 multiplier at healthy vault → 0.20% per side |
 | `MIN_VAULT_RATIO_BPS` | 9,500 | 95% circuit breaker threshold |
 | `MIN_VAULT_POST_WITHDRAWAL_BPS` | 11,000 | 110% admin withdrawal floor |
 | `MAX_FUNDING_RATE_BPS` | 100 | 1%/day governance cap |

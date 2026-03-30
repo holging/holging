@@ -270,7 +270,7 @@ k_init = SOL_price² / 1e9
 k_decay = k × (864M − rate_bps × elapsed) / 864M
 obligations = circulating × k / SOL_price / 1e3
 vault_ratio = vault_balance × 10000 / obligations
-fee_dynamic = base × {>200%: ×0.5, 150-200%: ×5, 100-150%: ×10, <100%: ×20}
+fee_dynamic = base × {>200%: ×5, 150-200%: ×10, 100-150%: ×15, <100%: ×20}
 lp_shares = usdc × (supply + 1000) / (principal + 1000)
 holging_pnl = (x − 1)² / (2x)    where x = SOL_new / SOL_init
 funding_apy = 1 − (1 − 10/10000)^365 ≈ 30.59%

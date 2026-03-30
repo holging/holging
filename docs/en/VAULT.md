@@ -41,9 +41,9 @@ vault_ratio = vault_balance / obligations × 10,000 (in bps)
 
 | Ratio | Status | What happens |
 |-------|--------|--------------|
-| > 200% | 🟢 Healthy | Minimum fee (2 bps), LPs can freely withdraw |
-| 150–200% | 🟡 Normal | Standard fee (20 bps) |
-| 110–150% | 🟠 Elevated | High fee (40 bps), LP withdrawal available |
+| > 200% | 🟢 Healthy | Minimum fee (20 bps), LPs can freely withdraw |
+| 150–200% | 🟡 Normal | Standard fee (40 bps) |
+| 110–150% | 🟠 Elevated | High fee (60 bps), LP withdrawal available |
 | 95–110% | 🔴 Critical | Maximum fee (80 bps), LP withdrawal blocked |
 | < 95% | ⛔ Circuit Breaker | All redeems blocked, only mint available |
 
@@ -63,9 +63,9 @@ Fee_APY = Fee_Revenue_Annual / TVL × 100%
 
 | Vault Health | base_fee (per side) | Multiplier | Effective (per side) | Roundtrip | Max (clamped) |
 |-------------|--------------------:|-----------|---------------------:|----------:|--------------:|
-| > 200% | 4 bps | ×0.5 | 2 bps | 4 bps | — |
-| 150–200% | 4 bps | ×5 | 20 bps | 40 bps | — |
-| 100–150% | 4 bps | ×10 | 40 bps | 80 bps | — |
+| > 200% | 4 bps | ×5 | 20 bps | 40 bps | — |
+| 150–200% | 4 bps | ×10 | 40 bps | 80 bps | — |
+| 100–150% | 4 bps | ×15 | 60 bps | 120 bps | — |
 | < 100% | 4 bps | ×20 | 80 bps | 100 bps* | *clamped to 100 bps |
 
 ### 2.2 Funding Rate (k-Decay)
@@ -113,11 +113,11 @@ Funding_APY = 1 − (1 − rate_bps/10,000)^365
 **Conditions:** SOL = $150, TVL = $500K, Daily Volume = $100K, Vault ratio > 200%
 
 ```
-Fee: 2 bps per side = 4 bps roundtrip
+Fee: 40 bps per side = 80 bps roundtrip
 
-Fee revenue/day   = $100,000 × 0.0004 = $40
-Fee revenue/year  = $40 × 365 = $14,600
-Fee APY           = $14,600 / $500,000 = 2.92%
+Fee revenue/day   = $100,000 × 0.004 = $400
+Fee revenue/year  = $400 × 365 = $146,000
+Fee APY           = $146,000 / $500,000 = 29.20%
 
 Funding revenue/day  = $500,000 × 0.001 = $500
 Funding revenue/year = ~$152,950 (compound)
@@ -134,11 +134,11 @@ LP return on $10,000 = $3,351/year = $279/month
 **Conditions:** SOL ranges between $100–$200, TVL = $500K, Daily Volume = $300K, Vault ratio 150–200%
 
 ```
-Fee: 20 bps per side = 40 bps roundtrip
+Fee: 40 bps per side = 80 bps roundtrip
 
-Fee revenue/day   = $300,000 × 0.004 = $1,200
-Fee revenue/year  = $1,200 × 365 = $438,000
-Fee APY           = $438,000 / $500,000 = 87.60%
+Fee revenue/day   = $300,000 × 0.008 = $2,400
+Fee revenue/year  = $2,400 × 365 = $876,000
+Fee APY           = $876,000 / $500,000 = 175.20%
 
 Funding APY       = 30.59%
 
@@ -168,7 +168,7 @@ After crash (SOL −50%):
   shortSOL appreciates 2x: obligations = $400,000
   vault_ratio = $500,000 / $400,000 = 125% (elevated)
   
-  Fee switches to 40 bps (×10 multiplier)
+  Fee switches to 60 bps (×15 multiplier)
   LP withdrawal: available (ratio > 110%)
 
 Development:
@@ -226,16 +226,16 @@ After rally:
   vault = $500,000
   ratio = $500,000 / $100,000 = 500% (extremely healthy)
   
-  Fee: 2 bps (minimum)
+  Fee: 20 bps (minimum)
   LPs can freely withdraw
   Admin can withdraw excess: $500K − 110% × $100K = $390K
 
 LP P&L:
-  Fees: $500K × 0.0004 × 365 / $500K = 14.6% APY
+  Fees: $500K × 0.004 × 365 / $500K = 146% APY
   Funding: 30.59% APY
   IL: $0 (obligations decreased — LPs are in profit)
   
-  Total APY = 45.19% (fees higher due to volume)
+  Total APY = 196.79% (high volume + funding)
   LP return on $10,000 = $4,519/year
 ```
 
@@ -245,13 +245,13 @@ LP P&L:
 
 | SOL Movement | Vault Ratio | Fee | LP APY (gross) | IL Risk | LP Liquidity |
 |-------------|-------------|-----|----------------|---------|--------------|
-| +100% (×2) | 500%+ | 2 bps | 45%+ | None | ✅ Free |
-| +50% (×1.5) | 333%+ | 2 bps | 40%+ | None | ✅ Free |
-| +25% (×1.25) | 250%+ | 2 bps | 38%+ | None | ✅ Free |
-| ±0% | Initial | 2–20 bps | 33–40% | None | ✅ Free |
-| −25% (×0.75) | ~150% | 20 bps | 50–65% | Minimal | ✅ Free |
-| −33% (×0.67) | ~120% | 40 bps | 60–80% | Moderate | ✅ Free |
-| −40% (×0.60) | ~105% | 40 bps | 65–85% | High | ⚠️ Restricted |
+| +100% (×2) | 500%+ | 20 bps | 65%+ | None | ✅ Free |
+| +50% (×1.5) | 333%+ | 20 bps | 60%+ | None | ✅ Free |
+| +25% (×1.25) | 250%+ | 20 bps | 55%+ | None | ✅ Free |
+| ±0% | Initial | 20–40 bps | 55–73% | None | ✅ Free |
+| −25% (×0.75) | ~150% | 40 bps | 70–95% | Minimal | ✅ Free |
+| −33% (×0.67) | ~120% | 60 bps | 80–110% | Moderate | ✅ Free |
+| −40% (×0.60) | ~105% | 60 bps | 85–115% | High | ⚠️ Restricted |
 | −50% (×0.50) | ~80% | 80 bps | — | High | ❌ Blocked |
 | −70% (×0.30) | ~45% | 80 bps | — | Critical | ❌ Circuit Breaker |
 | −90% (×0.10) | ~15% | 80 bps | — | Catastrophic | ❌ Circuit Breaker |
@@ -463,8 +463,8 @@ $1M portfolio → $100K–200K in LP
 | k-decay (daily) | `k × (864M − rate_bps × 86400) / 864M` |
 | Freed USDC | `obligations_before − obligations_after_decay` |
 | Max SOL drop to CB | `1 − 0.95 × obligations / vault_balance` |
-| Dynamic fee mult. | `{>200%: ×0.5, 150–200%: ×5, 100–150%: ×10, <100%: ×20}` |
-| Break-even Holging | `SOL move > ±4%` (0.08% roundtrip fee) |
+| Dynamic fee mult. | `{>200%: ×5, 150–200%: ×10, 100–150%: ×15, <100%: ×20}` |
+| Break-even Holging | `SOL move > ±9%` (0.40% roundtrip fee)) |
 
 ---
 

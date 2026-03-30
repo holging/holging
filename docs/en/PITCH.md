@@ -83,8 +83,8 @@ Paradigm Research confirms: "Everything Is A Perp" — the market is moving towa
 
 ## Revenue Model
 
-- **0.1% per side** (0.2% roundtrip) — dynamic, increases under stress
-- At $1M daily volume → **$2,000/day = $730K/year**
+- **0.20% per side** (0.40% roundtrip) — dynamic, increases under stress
+- At $1M daily volume → **$4,000/day = $1.46M/year**
 - Fees stay in vault as safety buffer + withdrawable by admin
 
 | Daily Volume | Annual Revenue | Break-even (on $500K seed) |
@@ -155,15 +155,15 @@ Selling SOL = exiting the ecosystem. shortSOL = hedge inside the ecosystem. Holg
 Different audiences. Perps = traders (margin, funding rate, liquidation monitoring). Holging = holders (one click, token in wallet, zero maintenance). Analogy: ProShares Short S&P 500 (ETF) vs E-mini S&P futures.
 
 **Q: "Holging always wins" — isn't that too good to be true?**
-Mathematically proven in Lean 4 (8 theorems). Economically — break-even at SOL ±4% (0.2% roundtrip fee). For daily moves of 1-2%, profit ≈ zero. The strategy profits from **volatility** — bigger moves = bigger P&L. It's a perpetual straddle without theta decay.
+Mathematically proven in Lean 4 (8 theorems). Economically — break-even at SOL ±9% (0.40% roundtrip fee). For daily moves of 1-2%, profit ≈ zero. The strategy profits from **volatility** — bigger moves = bigger P&L. It's a perpetual straddle without theta decay.
 
 **Q: What if SOL drops 80%?**
-shortSOL rises 5x. Vault must pay 5x. Circuit breaker pauses at vault ratio < 95%. Solution: overcollateralization. Formula: for -80% protection, vault = 5x TVL. Dynamic fees automatically increase to 0.5% under stress, slowing outflows.
+shortSOL rises 5x. Vault must pay 5x. Circuit breaker pauses at vault ratio < 95%. Solution: overcollateralization. Formula: for -80% protection, vault = 5x TVL. Dynamic fees automatically increase to 0.80% under stress, slowing outflows.
 
 ### Economics
 
 **Q: Who is the counterparty?**
-Vault is treasury-backed. Initially overcollateralized by team/fund. Fees (0.1-0.5%) accumulate as safety buffer. At high volume, vault becomes self-sustaining. V2: external LPs with yield sharing.
+Vault is treasury-backed. Initially overcollateralized by team/fund. Fees (0.20–0.80%) accumulate as safety buffer. At high volume, vault becomes self-sustaining. V2: external LPs with yield sharing.
 
 **Q: How is the liquidity pool funded?**
 Via `add_liquidity` instruction (admin-only). Initially: seed capital from fund. V2: permissionless LP vault with yield sharing from fees. V3: AMM pool on Orca (SOL/shortSOL).
@@ -199,4 +199,4 @@ Yes. `pool_id` is parameterized across all 16 instructions. For shortBTC: new Py
 Squeeth used x² model (leveraged, path-dependent). Holging uses 1/x (no decay, no path dependency). Squeeth required complex infrastructure and deep liquidity. Holging is vault-backed, zero slippage, simpler model. Different products for different markets.
 
 **Q: TAM/SAM/SOM?**
-TAM: $47B (crypto derivatives daily volume). SAM: $2B (Solana perps volume). SOM: $50M (1-year target, retail hedging + holging). At 0.2% fee capture = $100K/year at $50M volume.
+TAM: $47B (crypto derivatives daily volume). SAM: $2B (Solana perps volume). SOM: $50M (1-year target, retail hedging + holging). At 0.40% fee capture = $200K/year at $50M volume.

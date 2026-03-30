@@ -40,9 +40,9 @@ Every shortSOL mint and redeem generates a fee that is **fully** distributed amo
 
 | Vault State | Fee (per side) | Roundtrip | When |
 |-------------|----------------|-----------|------|
-| > 200% (healthy) | 2 bps (0.02%) | 0.04% | Vault is well-collateralized |
-| 150–200% (normal) | 20 bps (0.20%) | 0.40% | Standard operation |
-| 100–150% (elevated) | 40 bps (0.40%) | 0.80% | Stress — fees increase |
+| > 200% (healthy) | 20 bps (0.20%) | 0.40% | Vault is well-collateralized |
+| 150–200% (normal) | 40 bps (0.40%) | 0.80% | Standard operation |
+| 100–150% (elevated) | 60 bps (0.60%) | 1.20% | Stress — fees increase |
 | < 100% (critical) | 80 bps (0.80%) | 1.60% | Vault auto-protection |
 
 > Dynamic fees are a built-in stabilizer: under vault stress, high fees slow down redemptions and attract new mints, restoring pool health.
@@ -83,15 +83,15 @@ Call claim_lp_fees → receive accumulated fees
 
 ### 3.2 Projected Scenarios
 
-With a healthy vault (>200%, roundtrip fee = 0.04%):
+With a healthy vault (>200%, roundtrip fee = 0.80%):
 
 | Scenario | TVL | Daily Volume | Fee APY | Funding APY | **Total APY** |
 |----------|-----|-------------|---------|-------------|---------------|
-| Conservative | $100K | $10K | 1.46% | 36.50% | **37.96%** |
-| Moderate | $500K | $100K | 2.92% | 36.50% | **39.42%** |
-| Aggressive | $2M | $500K | 3.65% | 36.50% | **40.15%** |
+| Conservative | $500K | $100K | 29.20% | 36.50% | **65.70%** |
+| Moderate | $1M | $250K | 36.50% | 36.50% | **73.00%** |
+| Aggressive | $2M | $500K | 36.50% | 36.50% | **73.00%** |
 
-With a stressed vault (150–200%, roundtrip fee = 0.40%):
+With a stressed vault (150–200%, roundtrip fee = 0.80%):
 
 | Scenario | TVL | Daily Volume | Fee APY | Funding APY | **Total APY** |
 |----------|-----|-------------|---------|-------------|---------------|

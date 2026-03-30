@@ -28,25 +28,25 @@ This follows from the AM-GM inequality: `(x + 1/x) / 2 ≥ 1` for any x > 0.
 
 ## 2. Profitability Table
 
-| SOL movement | Gross P&L | Net P&L (−0.08% fee) | On $10,000 |
+| SOL movement | Gross P&L | Net P&L (−0.40% fee) | On $10,000 |
 |-------------|-----------|----------------------|------------|
-| −80% | +160.00% | +159.92% | +$15,992 |
-| −50% | +25.00% | +24.92% | +$2,492 |
-| −25% | +4.17% | +4.09% | +$409 |
-| −10% | +0.56% | +0.48% | +$48 |
-| −5% | +0.13% | +0.05% | +$5 |
-| 0% | 0.00% | −0.08% | −$8 |
-| +5% | +0.12% | +0.04% | +$4 |
-| +10% | +0.45% | +0.37% | +$37 |
-| +25% | +2.50% | +2.42% | +$242 |
-| +50% | +8.33% | +8.25% | +$825 |
-| +100% | +25.00% | +24.92% | +$2,492 |
-| +200% | +66.67% | +66.59% | +$6,659 |
+| −80% | +160.00% | +159.60% | +$15,960 |
+| −50% | +25.00% | +24.60% | +$2,460 |
+| −25% | +4.17% | +3.77% | +$377 |
+| −10% | +0.56% | +0.16% | +$16 |
+| −5% | +0.13% | -0.27% | -$27 |
+| 0% | 0.00% | −0.40% | −$40 |
+| +5% | +0.12% | -0.28% | -$28 |
+| +10% | +0.45% | +0.05% | +$5 |
+| +25% | +2.50% | +2.10% | +$210 |
+| +50% | +8.33% | +7.93% | +$793 |
+| +100% | +25.00% | +24.60% | +$2,460 |
+| +200% | +66.67% | +66.27% | +$6,627 |
 
 ### Break-even
 
-- SOL must move by **±4%** to cover the 0.08% roundtrip fee
-- With movement < ±4% the strategy is at a loss equal to the fee amount ($8 on $10K)
+- SOL must move by **±9%** to cover the 0.40% roundtrip fee
+- With movement < ±9% the strategy is at a loss equal to the fee amount ($40 on $10K)
 - With SOL volatility ~60% annualized, the threshold is crossed practically every day
 
 ---
@@ -74,26 +74,26 @@ Rebalancing returns the portfolio to 50/50:
 
 ```
 Rebalancing = Redeem shortSOL → USDC → Mint shortSOL
-Fee: 0.08% roundtrip × rebalancing size
-Maximum: 0.16% of portfolio (for full rebalancing of both legs)
+Fee: 0.40% roundtrip × rebalancing size
+Maximum: 0.80% of portfolio (for full rebalancing of both legs)
 ```
 
 ### Optimal Threshold
 
 | Threshold | Gain/Fee ratio | Recommendation |
 |-------|---------------|--------------|
-| ±3% | 0.3x | ❌ Unprofitable — fee eats all gain |
-| ±5% | 0.7x | ❌ Still unprofitable |
-| ±10% | 2.8x | ⚠️ Marginal |
-| ±15% | 6.1x | ✅ Good |
-| **±20%** | **10.4x** | **✅ Optimal** |
-| ±25% | 15.6x | ✅ Conservative |
-| ±30% | 21.6x | ✅ For large positions |
+| ±3% | 0.1x | ❌ Unprofitable — fee eats all gain |
+| ±5% | 0.3x | ❌ Unprofitable |
+| ±10% | 1.1x | ⚠️ Marginal |
+| ±15% | 2.4x | ⚠️ Low |
+| ±20% | 4.2x | ✅ Acceptable |
+| **±25%** | **6.2x** | **✅ Optimal** |
+| ±30% | 8.7x | ✅ Conservative |
 
-**Recommendation: rebalance when SOL moves ±20% from the entry point.**
+**Recommendation: rebalance when SOL moves ±25% from the entry point.**
 
 At this threshold:
-- Gain/fee ratio = 10x (fee = 10% of profit)
+- Gain/fee ratio = 6.2x (fee = 16% of profit)
 - ~6 rebalances per year at current SOL volatility
 - Each rebalance locks in ~1.5% profit
 
@@ -146,7 +146,7 @@ Via MCP Server:
 
 | Risk | Description | Hedge |
 |------|-------------|-------|
-| **Low volatility** | SOL moves < ±4%, fees > P&L | Choose a high-volatility period |
+| **Low volatility** | SOL moves < ±9%, fees > P&L | Choose a high-volatility period |
 | **Funding rate** | k-decay 10 bps/day reduces shortSOL | Rebalancing resets entry price |
 | **Vault risk** | Circuit breaker at coverage < 95% | Monitor `get_pool_state` → coverage |
 | **Oracle risk** | Pyth staleness / manipulation | 4-level validation in the contract |
@@ -227,7 +227,7 @@ Pool is paused. **Action:** wait for admin to unpause, don't panic — funds are
 Entry signal:
   - SOL 7-day realized vol > 50% annualized
   - Pool coverage > 200%
-  - Dynamic fee = base (0.04%)
+  - Dynamic fee = 0.20% (×5 at healthy vault)
 
 Exit signal:
   - SOL 14-day realized vol < 25%
@@ -376,10 +376,10 @@ Exit signal:
 |-----------|-------|
 | **Strategy** | 50% SOL + 50% shortSOL |
 | **Mathematical guarantee** | P&L ≥ 0 for any x ≠ 1 (AM-GM) |
-| **Break-even** | SOL ±4% |
+| **Break-even** | SOL ±9% |
 | **Optimal rebalance threshold** | ±20% |
 | **Expected rebalances** | ~6/year |
-| **Rebalance cost** | 0.16% of portfolio |
+| **Rebalance cost** | 0.80% of portfolio |
 | **Funding decay** | ~3%/month (10 bps/day) |
 | **Recommended horizon** | 1–6 months (with rebalancing) |
 | **Automation** | MCP Server, 11 tools |
@@ -392,7 +392,7 @@ Annual Return ≈ Σ (holging_gain_i − rebalance_fee_i) − funding_decay
 
 Where:
   holging_gain_i = (x_i − 1)² / (2x_i)    for each period between rebalances
-  rebalance_fee = 0.16%                      per rebalance
+  rebalance_fee = 0.80%                      per rebalance
   funding_decay = 10 bps/day                 between rebalances
 ```
 

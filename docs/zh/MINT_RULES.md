@@ -39,9 +39,9 @@ SOL price:    $84.57
 k:            7,197,715,091,917
 shortSOL:     $85.11 (= k × 1e9 / 84,570,000,000)
 Coverage:     6,446% (> 200%)
-Dynamic fee:  2 bps (0.02%) — 折扣费率
+Dynamic fee:  20 bps (0.20%)
 
-Fee:          100 × 2 / 10000 = $0.02
+Fee:          100 × 20 / 10000 = $0.20
 Effective:    $99.98
 Tokens:       99.98 × 1000 × 1e9 / 85,110,000,000 = 1.1748 shortSOL
 
@@ -89,9 +89,9 @@ Funding 降低 k → shortSOL 随时间变便宜。
 
 | Vault Coverage | 费率 | bps | 说明 |
 |---------------|------|-----|------|
-| > 200% | base/2 | 2 bps | Vault 健康 → 折扣 |
-| 150–200% | base×5 | 20 bps | 正常 |
-| 100–150% | base×10 | 40 bps | 较高 |
+| > 200% | base×5 | 20 bps | Vault 健康 |
+| 150–200% | base×10 | 40 bps | 偏高 |
+| 100–150% | base×15 | 60 bps | 压力 |
 | < 100% | base×20 | 80 bps | 危急 |
 
 最大值：100 bps（1%）。最小值：1 bps。
@@ -154,7 +154,7 @@ MintEvent {
     tokens_out:     1_174_800_000 (1.1748 shortSOL)
     sol_price:      84_570_000_000 ($84.57)
     shortsol_price: 85_110_000_000 ($85.11)
-    fee:            20_000 ($0.02)
+    fee:            200_000 ($0.20)
     timestamp:      1774870000
 }
 ```
