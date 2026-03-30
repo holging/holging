@@ -12,7 +12,6 @@ import {
   PublicKey,
   Transaction,
   VersionedTransaction,
-  SendOptions,
 } from "@solana/web3.js";
 
 const STORAGE_KEY = "holging-burner-wallet";

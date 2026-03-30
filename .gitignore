@@ -28,3 +28,6 @@ skills-lock.json
 
 # MCP config (contains local paths)
 .mcp.json
+
+# Local Netlify folder
+.netlify
