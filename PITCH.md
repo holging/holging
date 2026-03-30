@@ -110,9 +110,11 @@ SOL должен сдвинуться на ±4% для прибыли после
 ## 5. Что построено
 
 ### Смарт-контракт (Solana / Anchor / Rust)
-- **16 инструкций**: initialize, mint, redeem, add_liquidity, remove_liquidity, withdraw_fees, update_k, update_fee, update_price, set_pause, create_metadata, transfer_authority, accept_authority, initialize_funding, accrue_funding, update_funding_rate
-- **16 кодов ошибок** с полной обработкой
-- **12 типов событий** для аналитики (MintEvent, RedeemEvent, CircuitBreakerTriggered, AddLiquidityEvent, WithdrawFeesEvent, RemoveLiquidityEvent, PauseEvent, UpdateFeeEvent, UpdateKEvent, ProposeAuthorityEvent, TransferAuthorityEvent, FundingAccruedEvent)
+- **20 инструкций**: initialize, mint, redeem, add_liquidity, remove_liquidity, claim_lp_fees, withdraw_fees, update_k, update_fee, update_price, set_pause, create_metadata, transfer_authority, accept_authority, initialize_funding, accrue_funding, update_funding_rate, initialize_lp, update_min_lp_deposit, migrate_pool
+- **20 кодов ошибок** с полной обработкой
+- **16 типов событий** для аналитики (MintEvent, RedeemEvent, CircuitBreakerTriggered, AddLiquidityEvent, WithdrawFeesEvent, RemoveLiquidityEvent, PauseEvent, UpdateFeeEvent, UpdateKEvent, ProposeAuthorityEvent, TransferAuthorityEvent, FundingAccruedEvent, FundingDistributedEvent, LpDepositEvent, LpFeeClaimedEvent, LpWithdrawEvent)
+- **4 пула**: shortSOL, shortTSLA, shortSPY, shortAAPL — мульти-ассет с первого дня
+- **LP система** — add_liquidity, remove_liquidity, claim_lp_fees с SHARE_PRECISION 1e12
 - **Динамические комиссии** (5–50 bps в зависимости от vault ratio)
 - **Funding rate** — k-decay 10 bps/день (~30.6%/год); инлайн-применение при mint/redeem без зависимости от keeper
 - **Two-step authority transfer** — безопасная передача прав через propose + accept
@@ -122,13 +124,23 @@ SOL должен сдвинуться на ±4% для прибыли после
 - **Задеплоен на Devnet**: `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
 
 ### Фронтенд (React / TypeScript / Vite)
-- **6 табов**: Mint, Redeem, Holging, Holders, State, Risk Dashboard
+- **8 табов**: Mint, Redeem, LP, Holging, Holders, State, MCP, Risk Dashboard
+- **Burner Wallet** — встроенный браузерный кошелёк, авто-airdrop SOL, zero-install тестирование
+- **MCP Page** — документация для AI-агентов с интерактивным каталогом 11 тулов
+- **LP Dashboard** — управление ликвидностью, add/remove, claim fees
 - **State** — публичный дашборд состояния vault (vault ratio, obligations, circuit breaker)
-- **Holging** — интерактивный симулятор портфеля со стратегией 50/50
+- **Holging** — интерактивный симулятор портфеля со стратегией 50/50, P&L кривая
 - **Risk Dashboard** (admin-only) — стресс-тест, liquidity calculator, vault metrics
-- **Real-time** цены SOL через Pyth oracle
-- **Multi-wallet** поддержка (Phantom, Solflare)
-- **Работающее приложение**: holging.com
+- **Multi-asset** — переключение между shortSOL, shortTSLA, shortSPY, shortAAPL
+- **Real-time** цены через Pyth oracle (4 фида)
+- **Multi-wallet** поддержка (Burner Wallet, Phantom, Solflare)
+- **Работающее приложение**: https://holging.com
+
+### MCP Server (AI Agent Trading)
+- **11 инструментов**: get_pool_state, get_price, get_all_prices, get_position, simulate_mint, simulate_redeem, mint, redeem, add_liquidity, remove_liquidity, claim_lp_fees
+- AI-агенты (Claude, GPT) могут торговать программно через Model Context Protocol
+- Полный цикл: сканирование рынка → симуляция → исполнение → верификация
+- **GitHub**: https://github.com/holging/holging/tree/main/mcp-server
 
 ### Безопасность оракула (Pyth Network)
 4 уровня валидации:
@@ -164,15 +176,16 @@ SOL должен сдвинуться на ±4% для прибыли после
 
 ```
 Blockchain:    Solana (400ms finality, $0.001 per tx)
-Smart Contract: Anchor 0.32.1 (Rust), 16 инструкций
-Oracle:        Pyth Network (pull-based, 400ms latency)
+Smart Contract: Anchor 0.32.1 (Rust), 20 инструкций
+Oracle:        Pyth Network (pull-based, 400ms latency, 4 фида)
 Frontend:      React 19 + TypeScript 5.9 + Vite 7
-Wallet:        Solana Wallet Adapter
+Wallet:        Solana Wallet Adapter + Burner Wallet (built-in)
 Token:         SPL Token + Metaplex metadata
+AI Trading:    MCP Server v2.0 (11 tools)
 Верификация:   Lean 4 + Mathlib (8 теорем)
-Hosting:       holging.com
+Hosting:       holging.com (VPS + nginx + Let's Encrypt)
 Keeper:        Node.js скрипт (scripts/keeper.ts), permissionless
-Mobile:        Solafon Mini App (в разработке)
+GitHub:        https://github.com/holging
 ```
 
 ---
@@ -180,11 +193,12 @@ Mobile:        Solafon Mini App (в разработке)
 ## 7. Метрики кода
 
 ```
-Rust (smart contract):     ~3,500 LOC
-TypeScript (frontend):     ~2,500 LOC
-TypeScript (tests):        ~8,000 LOC
-TypeScript (scripts):      ~500 LOC
-CSS:                       ~730 LOC
+Rust (smart contract):     ~3,100 LOC
+TypeScript (frontend):     ~4,700 LOC
+TypeScript (MCP server):   ~1,100 LOC
+TypeScript (tests):        ~1,850 LOC
+TypeScript (scripts):      ~1,100 LOC
+CSS:                       ~2,700 LOC
 Documentation:             ~1,400 строк markdown
 
 Всего:                     ~16,000+ LOC
@@ -232,15 +246,20 @@ L_required = TVL / (1 − d)
 ## 10. Roadmap
 
 ### Phase 1: Devnet MVP ✅ (текущая)
-- ✅ Anchor program: 16 инструкций, 16 кодов ошибок, 12 событий
-- ✅ Pyth devnet integration
+- ✅ Anchor program: 20 инструкций, 20 кодов ошибок, 16 событий
+- ✅ Pyth devnet integration (4 фида: SOL, TSLA, SPY, AAPL)
+- ✅ Multi-asset: shortSOL, shortTSLA, shortSPY, shortAAPL
+- ✅ LP система: add_liquidity, remove_liquidity, claim_lp_fees
 - ✅ Динамические комиссии (5–50 bps)
 - ✅ Funding rate (k-decay, 10 bps/день, inline при mint/redeem)
 - ✅ Two-step authority transfer (propose + accept)
 - ✅ Withdraw floor 110% (буфер до circuit breaker)
-- ✅ Frontend: Mint, Redeem, Holging, Holders, State, Risk Dashboard
+- ✅ Frontend: 8 табов (Mint, Redeem, LP, Holging, Holders, State, MCP, Risk)
+- ✅ Burner Wallet — тестирование без установки расширений
+- ✅ MCP Server v2.0 — 11 тулов для AI-агентов (полный трейдинг)
 - ✅ Lean 4 формальная верификация (8 теорем)
-- ✅ Деплой на holging.com
+- ✅ Деплой на https://holging.com
+- ✅ GitHub организация: https://github.com/holging
 
 ### Phase 2: Testnet + Audit
 - [ ] Security audit (OtterSec / Neodyme)

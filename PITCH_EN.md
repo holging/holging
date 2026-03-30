@@ -60,18 +60,23 @@ Paradigm Research confirms: "Everything Is A Perp" — the market is moving towa
 
 ## Traction
 
-- **16 instructions** deployed on Solana Devnet (16 error codes, 12 event types)
+- **20 instructions** deployed on Solana Devnet (20 error codes, 16 event types)
+- **4 pools live**: shortSOL, shortTSLA, shortSPY, shortAAPL — multi-asset from day one
+- **LP system**: add_liquidity, remove_liquidity, claim_lp_fees with SHARE_PRECISION 1e12
+- **MCP Server v2.0**: 11 tools for AI agent trading (Claude, GPT can trade programmatically)
+- **Burner Wallet**: built-in browser wallet, auto SOL airdrop, zero-install testing
 - **Dynamic fees** (5-50 bps based on vault health)
 - **Funding rate** — k-decay 10 bps/day (~30.6%/year); applied inline on mint/redeem, no keeper dependency
 - **Two-step authority transfer** — propose + accept pattern, atomic and safe
 - **Withdrawal floor 110%** — admin cannot drain vault below 110% of obligations
 - **Circuit breaker** (auto-pause at vault ratio < 95%)
-- **4-layer oracle validation** (Pyth Network)
+- **4-layer oracle validation** (Pyth Network, 4 price feeds)
 - **Vault reconciliation** (post-CPI balance verification)
 - **Slippage protection** (1% default tolerance)
 - **Rate limiting** (2s cooldown, anti-sandwich)
-- **Live demo:** https://holging.com
+- **Live demo:** https://holging.com (8 tabs: Mint, Redeem, LP, Holging, Holders, State, MCP, Risk)
 - **Formally verified** (Lean 4, 8 theorems)
+- **GitHub:** https://github.com/holging
 - **Program ID:** `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
 
 ---
@@ -96,12 +101,13 @@ Paradigm Research confirms: "Everything Is A Perp" — the market is moving towa
 | Layer | Technology |
 |-------|-----------|
 | Blockchain | Solana (400ms finality, $0.001/tx) |
-| Smart Contract | Anchor 0.32.1 (Rust), 16 instructions |
-| Oracle | Pyth Network (pull-based, 400ms) |
+| Smart Contract | Anchor 0.32.1 (Rust), 20 instructions |
+| Oracle | Pyth Network (pull-based, 400ms, 4 feeds) |
 | Frontend | React 19 + Vite 7 + TypeScript |
+| AI Trading | MCP Server v2.0, 11 tools |
 | Formal Verification | Lean 4 + Mathlib (8 theorems) |
 | Keeper | Node.js (scripts/keeper.ts), permissionless |
-| Hosting | holging.com |
+| Hosting | holging.com (VPS + nginx + SSL) |
 
 ---
 
