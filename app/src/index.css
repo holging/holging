@@ -2909,3 +2909,24 @@ footer {
   border-radius: 6px;
   font-size: 0.9em;
 }
+
+/* ─── HTTP Method badges ───────────────────────────────────────────────────── */
+
+.mcp-method {
+  font-family: monospace;
+  font-weight: 800;
+  font-size: 0.75em;
+  padding: 0.2em 0.5em;
+  border-radius: 4px;
+  flex-shrink: 0;
+  min-width: 42px;
+  text-align: center;
+}
+.mcp-method-get {
+  background: #00d4aa22;
+  color: #00d4aa;
+}
+.mcp-method-post {
+  background: #ff6b6b22;
+  color: #ff6b6b;
+}

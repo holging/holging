@@ -123,7 +123,7 @@ function App() {
             className={tab === "mcp" ? "active" : ""}
             onClick={() => setTab("mcp")}
           >
-            MCP
+            API
           </button>
           {isAdmin && (
             <button
