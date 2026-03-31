@@ -1,20 +1,20 @@
 # Holging — Protocol Specification
 
-> **Source of truth.** Все документы и презентации должны ссылаться на этот файл.
-> Обновляется при каждом изменении параметров протокола.
+> **Source of truth.** All documents and presentations should reference this file.
+> Updated on every protocol parameter change.
 >
-> Последнее обновление: 2026-03-30
-> Программа: `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
+> Last updated: 2026-03-31
+> Program: `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
 
 ---
 
-## 1. Идентификация
+## 1. Identification
 
-| Параметр | Значение |
+| Parameter | Value |
 |---|---|
-| Название проекта | **Holging** |
-| Полное название | Holging — Tokenized Hedge Protocol |
-| Сеть | Solana Devnet (mainnet planned Q2 2026) |
+| Project name | **Holging** |
+| Full name | Holging — Tokenized Hedge Protocol |
+| Network | Solana Devnet (mainnet planned Q2 2026) |
 | Program ID | `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX` |
 | Frontend | https://holging.com |
 | API | https://api.holging.com |
@@ -25,105 +25,123 @@
 
 ---
 
-## 2. Основная формула
+## 2. Core Formula
 
 ```
 shortSOL_price = k × 10⁹ / SOL_price
 ```
 
-- **k** — нормализующая константа, устанавливается при инициализации пула: `k = P₀² / 10⁹`
-- При запуске: `shortSOL_price = SOL_price` (паритет)
-- k уменьшается со временем через funding rate (k-decay)
+- **k** — normalizing constant, set at pool initialization: `k = P₀² / 10⁹`
+- At launch: `shortSOL_price = SOL_price` (parity)
+- k decreases over time via funding rate (k-decay)
 
-### Holging-портфель
+### Holging Portfolio
 
 ```
-V(x) = (x + 1/x) / 2 ≥ 1   (AM-GM неравенство)
+V(x) = (x + 1/x) / 2 ≥ 1   (AM-GM inequality)
 P&L(x) = (x − 1)² / (2x) ≥ 0
 ```
 
-Где `x = SOL_price(t) / SOL_price(0)`. Портфель 50% SOL + 50% shortSOL **никогда не теряет стоимость** (до комиссий). Доказано в Lean 4 (8 теорем).
+Where `x = SOL_price(t) / SOL_price(0)`. A portfolio of 50% SOL + 50% shortSOL **never loses value** (before fees). Proven in Lean 4 (8 theorems).
 
 ---
 
-## 3. Комиссии
+## 3. Fees
 
-### 3.1 Базовая комиссия
+### 3.1 Base Fee
 
-| Параметр | Значение | Источник |
+| Parameter | Value | Source |
 |---|---|---|
 | DEFAULT_FEE_BPS | **4** | `constants.rs` |
-| Базовая ставка | 0.04% per side | |
-| Максимальная комиссия | 100 bps (1%) per side | `update_fee.rs` |
+| Base rate | 0.04% per side | |
+| Maximum fee | 100 bps (1%) per side | `update_fee.rs` |
 
-### 3.2 Динамические комиссии
+### 3.2 Dynamic Fees
 
-Источник: `fees.rs` → `calc_dynamic_fee()`
+Source: `fees.rs` → `calc_dynamic_fee()`
 
-Множители применяются к `DEFAULT_FEE_BPS = 4`:
+Multipliers applied to `DEFAULT_FEE_BPS = 4`:
 
-| Vault Health Ratio | Множитель | Per-Side | Roundtrip | Описание |
+| Vault Health Ratio | Multiplier | Per-Side | Roundtrip | Description |
 |---|---|---|---|---|
-| **> 200%** | **×5** | **20 bps (0.20%)** | **40 bps (0.40%)** | Стандартная работа |
-| **150–200%** | **×10** | **40 bps (0.40%)** | **80 bps (0.80%)** | Повышенная |
-| **100–150%** | **×15** | **60 bps (0.60%)** | **120 bps (1.20%)** | Стресс |
-| **< 100%** | **×20** | **80 bps (0.80%)** | **160 bps (1.60%)** | Критическая |
+| **> 200%** | **×5** | **20 bps (0.20%)** | **40 bps (0.40%)** | Normal operation |
+| **150–200%** | **×10** | **40 bps (0.40%)** | **80 bps (0.80%)** | Elevated |
+| **100–150%** | **×15** | **60 bps (0.60%)** | **120 bps (1.20%)** | Stress |
+| **< 100%** | **×20** | **80 bps (0.80%)** | **160 bps (1.60%)** | Critical |
 
-Все комиссии ограничены max 100 bps (1%) per side.
+All fees capped at max 100 bps (1%) per side.
 
-### 3.3 Формула vault health ratio
+### 3.3 Vault Health Ratio Formula
 
 ```
-obligations = circulating × shortSOL_price   (в USDC)
+obligations = circulating × shortSOL_price   (in USDC)
 ratio_bps = vault_balance × 10000 / obligations
 ```
 
-### 3.4 Распределение комиссий
+### 3.4 Fee Distribution
 
-- **100%** торговых комиссий → LP провайдерам (через `fee_per_share_accumulated`)
-- **0%** протокольной комиссии в текущей реализации
-- Admin может вывести excess выше 110% obligations через `withdraw_fees`
+- **100%** of trading fees → LP providers (via `fee_per_share_accumulated`)
+- **0%** protocol fee in current implementation
+- Admin can withdraw excess above 110% of obligations via `withdraw_fees`
 
 ---
 
 ## 4. Funding Rate (k-decay)
 
-| Параметр | Значение | Источник |
+### 4.1 Adaptive Rate
+
+Source: `fees.rs` → `calc_adaptive_rate()`
+
+The funding rate is **adaptive** — it scales with vault health using the same tier thresholds as dynamic fees. A base rate (admin-configurable, default 3 bps/day) is multiplied by a tier-dependent factor:
+
+| Vault Health Ratio | Multiplier | Effective Rate | Daily Decay | Annual Compound |
+|---|---|---|---|---|
+| **> 200%** | **×0.5** | **1.5 bps** | 0.015% | ~5.3% |
+| **150–200%** | **×1** | **3 bps** | 0.030% | ~10.3% |
+| **100–150%** | **×2** | **6 bps** | 0.060% | ~19.7% |
+| **< 100%** | **×3** | **9 bps** | 0.090% | ~28.3% |
+
+Result clamped to MAX_FUNDING_RATE_BPS = 100.
+
+### 4.2 Parameters
+
+| Parameter | Value | Source |
 |---|---|---|
-| DEFAULT_FUNDING_BPS | **10** | Устанавливается при `initialize_funding` |
-| Дневной decay | 0.10% | |
-| Годовой compound | **30.59%** | `(1 − 0.001)^365` |
+| Base rate (devnet) | **3** bps/day | Set via `update_funding_rate` |
 | MAX_FUNDING_RATE_BPS | 100 | `constants.rs` — governance cap |
 | MIN_K | 1,000,000 | `constants.rs` — floor prevents zero |
-| MAX_FUNDING_ELAPSED_SECS | 2,592,000 (30 дней) | `constants.rs` — cap per call |
+| MAX_FUNDING_ELAPSED_SECS | 2,592,000 (30 days) | `constants.rs` — cap per call |
 
-### Формула
+### 4.3 K-Decay Formula
 
 ```
-k_new = k_old × (864,000,000 − rate_bps × elapsed_secs) / 864,000,000
+k_new = k_old × (864,000,000 − effective_rate_bps × elapsed_secs) / 864,000,000
 denom = SECS_PER_DAY × BPS_DENOMINATOR = 86,400 × 10,000 = 864,000,000
 ```
 
-### Таблица ставок
+### 4.4 Rate Table (for reference)
 
-| rate_bps/день | Дневной decay | Годовой compound |
+| rate_bps/day | Daily Decay | Annual Compound |
 |---|---|---|
 | 1 | 0.01% | 3.57% |
+| 3 | 0.03% | 10.34% |
 | 5 | 0.05% | 16.62% |
-| **10** | **0.10%** | **30.59%** |
+| 6 | 0.06% | 19.72% |
+| 9 | 0.09% | 28.26% |
+| 10 | 0.10% | 30.59% |
 | 20 | 0.20% | 52.15% |
 | 50 | 0.50% | 83.86% |
 | 100 | 1.00% | 97.36% |
 
-### Распределение freed USDC
+### 4.5 Freed USDC Distribution
 
-Когда k уменьшается → obligations падают → freed USDC → LP fee accumulator.
+When k decreases → obligations decrease → freed USDC → LP fee accumulator.
 
 ---
 
-## 5. LP Система
+## 5. LP System
 
-| Параметр | Значение | Источник |
+| Parameter | Value | Source |
 |---|---|---|
 | MIN_LP_DEPOSIT | 100,000,000 ($100 USDC) | `constants.rs` |
 | LP_TOKEN_DECIMALS | 6 | `constants.rs` |
@@ -137,58 +155,58 @@ denom = SECS_PER_DAY × BPS_DENOMINATOR = 86,400 × 10,000 = 864,000,000
 shares = usdc_amount × (lp_total_supply + 1000) / (lp_principal + 1000)
 ```
 
-### Доходность LP
+### LP Yield Sources
 
-| Источник | Описание | Зависит от |
+| Source | Description | Depends on |
 |---|---|---|
-| Trading fees | 100% комиссий mint/redeem | Объём торгов |
-| Funding rate | Freed USDC от k-decay | Circulating supply |
+| Trading fees | 100% of mint/redeem fees | Trading volume |
+| Funding rate | Freed USDC from k-decay | Circulating supply |
 
-### LP APY модель (при vault >200%)
+### LP APY Model (vault >200%, adaptive rate ×0.5 = 1.5 bps/day)
 
-| Сценарий | TVL | Дневной объём | Fee APY | Funding APY | **Итого APY** |
+| Scenario | TVL | Daily Volume | Fee APY | Funding APY | **Total APY** |
 |---|---|---|---|---|---|
-| Консервативный | $500K | $100K | 29.2% | 36.5% | **65.7%** |
-| Умеренный | $1M | $250K | 36.5% | 36.5% | **73.0%** |
-| Агрессивный | $2M | $500K | 36.5% | 36.5% | **73.0%** |
+| Conservative | $500K | $100K | 29.2% | 5.3% | **34.5%** |
+| Moderate | $1M | $250K | 36.5% | 5.3% | **41.8%** |
+| Aggressive | $2M | $500K | 36.5% | 5.3% | **41.8%** |
 
-### LP APY при стрессе (vault 150–200%, roundtrip 80 bps)
+### LP APY Under Stress (vault 100–150%, adaptive rate ×2 = 6 bps/day)
 
-| Сценарий | TVL | Дневной объём | Fee APY | Funding APY | **Итого APY** |
+| Scenario | TVL | Daily Volume | Fee APY | Funding APY | **Total APY** |
 |---|---|---|---|---|---|
-| Консервативный | $500K | $100K | 58.4% | 36.5% | **94.9%** |
-| Умеренный | $1M | $250K | 73.0% | 36.5% | **109.5%** |
-| Агрессивный | $2M | $500K | 73.0% | 36.5% | **109.5%** |
+| Conservative | $500K | $100K | 58.4% | 19.7% | **78.1%** |
+| Moderate | $1M | $250K | 73.0% | 19.7% | **92.7%** |
+| Aggressive | $2M | $500K | 73.0% | 19.7% | **92.7%** |
 
-### Защита LP
+### LP Protections
 
-- Admin **не может** вывести LP principal или pending fees
-- LP withdrawal заблокирован при vault ratio < 110%
-- Dead shares pattern против first-depositor attack
+- Admin **cannot** withdraw LP principal or pending fees
+- LP withdrawal blocked when vault ratio < 110%
+- Dead shares pattern against first-depositor attack
 
 ---
 
 ## 6. Oracle (Pyth Network)
 
-| Параметр | Значение | Источник |
+| Parameter | Value | Source |
 |---|---|---|
-| MAX_STALENESS_SECS (devnet) | 259,200 (3 дня) | `constants.rs` |
+| MAX_STALENESS_SECS (devnet) | 259,200 (3 days) | `constants.rs` |
 | MAX_STALENESS_SECS (mainnet) | 30 | `constants.rs` |
 | MAX_CONFIDENCE_PCT | 2% | `constants.rs` |
 | MAX_PRICE_DEVIATION_BPS | 1,500 (15%) | `constants.rs` |
 | MAX_UPDATE_PRICE_DEVIATION_BPS | 1,500 (15%) | `constants.rs` |
 | MIN_PRICE | $1.00 (10⁹) | `constants.rs` |
 
-### 4-уровневая валидация
+### 4-Layer Validation
 
-1. **Staleness** — цена не старше MAX_STALENESS_SECS
-2. **Confidence** — CI < 2% от цены
-3. **Deviation** — |Δ| ≤ 15% от cached price
-4. **Floor** — цена ≥ $1.00
+1. **Staleness** — price no older than MAX_STALENESS_SECS
+2. **Confidence** — CI < 2% of price
+3. **Deviation** — |Δ| ≤ 15% from cached price
+4. **Floor** — price ≥ $1.00
 
 ### Price Feeds
 
-| Pool | Актив | Pyth Feed ID |
+| Pool | Asset | Pyth Feed ID |
 |---|---|---|
 | sol | SOL/USD | `ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d` |
 | tsla | TSLA/USD | `16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1` |
@@ -197,37 +215,37 @@ shares = usdc_amount × (lp_total_supply + 1000) / (lp_principal + 1000)
 
 ---
 
-## 7. Безопасность
+## 7. Security
 
 ### Circuit Breaker
 
-| Параметр | Значение | Источник |
+| Parameter | Value | Source |
 |---|---|---|
 | MIN_VAULT_RATIO_BPS | 9,500 (95%) | `constants.rs` |
 | MIN_VAULT_POST_WITHDRAWAL_BPS | 11,000 (110%) | `constants.rs` |
 | MIN_ACTION_INTERVAL_SECS | 2 | `constants.rs` |
 
-- Pool автоматически на паузе при vault ratio < 95%
-- Admin withdrawal заблокирован при vault < 110% obligations
-- 2-секундный cooldown между mint/redeem
+- Pool automatically paused when vault ratio < 95%
+- Admin withdrawal blocked when vault < 110% of obligations
+- 2-second cooldown between mint/redeem
 
 ### Authority
 
 - Two-step transfer: `transfer_authority` → `accept_authority`
-- Admin может: pause, update_fee (max 100 bps), update_k (only if circulating=0), withdraw_fees (excess only)
-- Admin **не может**: вывести LP principal, LP pending fees, изменить k при circulating > 0
+- Admin can: pause, update_fee (max 100 bps), update_k (only if circulating=0), withdraw_fees (excess only), update_funding_rate (max 100 bps/day)
+- Admin **cannot**: withdraw LP principal, LP pending fees, change k when circulating > 0
 
 ---
 
-## 8. Holging P&L (с комиссиями)
+## 8. Holging P&L (with fees)
 
-Break-even при roundtrip fee 0.40% (здоровый vault >200%):
+Break-even at roundtrip fee 0.40% (healthy vault >200%):
 
 ```
-(x−1)²/(2x) > 0.004  →  |x−1| > 0.089  →  SOL должен двинуться ±9%
+(x−1)²/(2x) > 0.004  →  |x−1| > 0.089  →  SOL must move ±9%
 ```
 
-| SOL движение | Gross P&L | Net P&L (−0.40% fee) | На $10,000 |
+| SOL Movement | Gross P&L | Net P&L (−0.40% fee) | On $10,000 |
 |---|---|---|---|
 | −90% | +405.00% | +404.60% | +$40,460 |
 | −50% | +25.00% | +24.60% | +$2,460 |
@@ -241,77 +259,77 @@ Break-even при roundtrip fee 0.40% (здоровый vault >200%):
 
 ---
 
-## 9. Программа: инструкции (20)
+## 9. Program Instructions (20)
 
-| # | Инструкция | Кто | Описание |
+| # | Instruction | Who | Description |
 |---|---|---|---|
-| 1 | `initialize` | Admin | Создать пул с k, fee, Pyth feed |
+| 1 | `initialize` | Admin | Create pool with k, fee, Pyth feed |
 | 2 | `mint` | User | USDC → shortSOL (slippage protection) |
 | 3 | `redeem` | User | shortSOL → USDC (slippage + circuit breaker) |
-| 4 | `initialize_lp` | Admin | Создать LP mint для пула |
+| 4 | `initialize_lp` | Admin | Create LP mint for pool |
 | 5 | `add_liquidity` | Anyone | USDC → LP shares |
 | 6 | `remove_liquidity` | LP owner | LP shares → USDC |
-| 7 | `claim_lp_fees` | LP owner | Получить накопленные USDC |
-| 8 | `initialize_funding` | Admin | Создать FundingConfig |
-| 9 | `accrue_funding` | Permissionless | Применить k-decay + раздать LP |
-| 10 | `update_funding_rate` | Admin | Изменить ставку (max 100 bps/day) |
-| 11 | `update_fee` | Admin | Изменить base fee (max 100 bps) |
-| 12 | `update_k` | Admin | Изменить k (только при circulating=0) |
-| 13 | `set_pause` | Admin | Пауза/возобновление пула |
-| 14 | `withdraw_fees` | Admin | Вывод excess выше 110% |
-| 15 | `transfer_authority` | Admin | Шаг 1: предложить нового admin |
-| 16 | `accept_authority` | New admin | Шаг 2: принять authority |
-| 17 | `update_min_lp_deposit` | Admin | Изменить минимум LP |
-| 18 | `set_feed_id` | Admin | Изменить Pyth feed ID |
-| 19 | `update_price` | Permissionless | Обновить cached price |
+| 7 | `claim_lp_fees` | LP owner | Claim accumulated USDC fees |
+| 8 | `initialize_funding` | Admin | Create FundingConfig |
+| 9 | `accrue_funding` | Permissionless | Apply k-decay + distribute to LPs |
+| 10 | `update_funding_rate` | Admin | Change rate (max 100 bps/day) |
+| 11 | `update_fee` | Admin | Change base fee (max 100 bps) |
+| 12 | `update_k` | Admin | Change k (only if circulating=0) |
+| 13 | `set_pause` | Admin | Pause/resume pool |
+| 14 | `withdraw_fees` | Admin | Withdraw excess above 110% |
+| 15 | `transfer_authority` | Admin | Step 1: propose new admin |
+| 16 | `accept_authority` | New admin | Step 2: accept authority |
+| 17 | `update_min_lp_deposit` | Admin | Change LP minimum |
+| 18 | `set_feed_id` | Admin | Change Pyth feed ID |
+| 19 | `update_price` | Permissionless | Update cached price |
 | 20 | `create_metadata` | Admin | Metaplex metadata |
 
 ---
 
-## 10. Accounts (state)
+## 10. Accounts (State)
 
 ### PoolState
-Основной account пула. Содержит: authority, k, fee_bps, vault_balance, circulating, LP данные, oracle cache, pending_authority. ~25 полей.
+Main pool account. Contains: authority, k, fee_bps, vault_balance, circulating, LP data, oracle cache, pending_authority. ~25 fields.
 
 ### FundingConfig
-Конфигурация k-decay: rate_bps, last_funding_at.
+K-decay configuration: rate_bps, last_funding_at.
 
 ### LpPosition
-Позиция LP провайдера: owner, pool, lp_shares, fee_per_share_checkpoint, pending_fees.
+LP provider position: owner, pool, lp_shares, fee_per_share_checkpoint, pending_fees.
 
 ---
 
 ## 11. Error Codes (21)
 
-| Код | Имя | Описание |
+| Code | Name | Description |
 |---|---|---|
-| 6000 | Paused | Пул на паузе |
-| 6001 | StaleOracle | Цена устарела |
+| 6000 | Paused | Pool is paused |
+| 6001 | StaleOracle | Price is stale |
 | 6002 | OracleConfidenceTooWide | CI > 2% |
-| 6003 | PriceDeviationTooHigh | >15% от cached |
-| 6004 | InsufficientLiquidity | Vault не покрывает |
-| 6005 | AmountTooSmall | Ноль на выходе |
+| 6003 | PriceDeviationTooHigh | >15% from cached |
+| 6004 | InsufficientLiquidity | Vault insufficient |
+| 6005 | AmountTooSmall | Zero output |
 | 6006 | CircuitBreaker | Vault ratio < 95% |
-| 6007 | RateLimitExceeded | <2s между операциями |
-| 6008 | PriceBelowMinimum | Цена < $1.00 |
-| 6009 | MathOverflow | Арифметическое переполнение |
-| 6010 | Unauthorized | Неверный authority |
-| 6011 | InvalidFee | fee > 100 bps или rate > max |
-| 6012 | CirculatingNotZero | Нельзя менять k при supply > 0 |
+| 6007 | RateLimitExceeded | <2s between operations |
+| 6008 | PriceBelowMinimum | Price < $1.00 |
+| 6009 | MathOverflow | Arithmetic overflow |
+| 6010 | Unauthorized | Wrong authority |
+| 6011 | InvalidFee | fee > 100 bps or rate > max |
+| 6012 | CirculatingNotZero | Cannot change k with supply > 0 |
 | 6013 | InvalidPoolId | Pool ID > 32 bytes |
-| 6014 | SlippageExceeded | Output ниже минимума |
-| 6015 | NoPendingAuthority | Нет pending transfer |
-| 6016 | BelowMinLpDeposit | LP депозит < $100 |
-| 6017 | LpNotInitialized | LP система не создана |
-| 6018 | FundingConfigRequired | FundingConfig не передан |
-| 6019 | NoFeesToClaim | Нет pending fees |
-| 6020 | InsufficientLpShares | Недостаточно LP токенов |
+| 6014 | SlippageExceeded | Output below minimum |
+| 6015 | NoPendingAuthority | No pending transfer |
+| 6016 | BelowMinLpDeposit | LP deposit < $100 |
+| 6017 | LpNotInitialized | LP system not created |
+| 6018 | FundingConfigRequired | FundingConfig not provided |
+| 6019 | NoFeesToClaim | No pending fees |
+| 6020 | InsufficientLpShares | Not enough LP tokens |
 
 ---
 
-## 12. Формальная верификация
+## 12. Formal Verification
 
-8 теорем в **Lean 4 / Mathlib** (все компилируются без `sorry`):
+8 theorems in **Lean 4 / Mathlib** (all compile without `sorry`):
 
 1. Pricing invariant: `P₀² / P₀ = P₀`
 2. PnL formula: `(x + 1/x)/2 − 1 = (x−1)²/(2x)`
@@ -322,27 +340,27 @@ Break-even при roundtrip fee 0.40% (здоровый vault >200%):
 7. Positive gamma: `1/x³ > 0` for `x > 0`
 8. Inverse relationship: `k/(2P) < k/P` for `P, k > 0`
 
-Источник: `lean-proofs/SolshortProofs/Basic.lean`
+Source: `lean-proofs/SolshortProofs/Basic.lean`
 
 ---
 
 ## 13. CPI (Cross-Program Invocation)
 
-Holging поддерживает CPI — любая программа может вызвать инструкции Holging от имени своего PDA.
+Holging supports CPI — any program can call Holging instructions on behalf of its PDA.
 
 ```toml
 holging = { path = "../holging", features = ["cpi"] }
 ```
 
-Все 20 инструкций доступны через `holging::cpi::mint()`, `holging::cpi::redeem()`, etc.
+All 20 instructions available via `holging::cpi::mint()`, `holging::cpi::redeem()`, etc.
 
-Документация: [docs/en/CPI.md](en/CPI.md)
+Documentation: [docs/CPI.md](CPI.md)
 
 ---
 
-## 14. Пулы
+## 14. Pools
 
-| Pool ID | Актив | Inverse токен | Статус |
+| Pool ID | Asset | Inverse Token | Status |
 |---|---|---|---|
 | sol | SOL/USD | shortSOL | ✅ Active (devnet) |
 | tsla | TSLA/USD | shortTSLA | ✅ Active (devnet) |
@@ -351,38 +369,38 @@ holging = { path = "../holging", features = ["cpi"] }
 
 ---
 
-## 15. Документация (указатель)
+## 15. Documentation Index
 
-| Документ | EN | RU | ZH |
-|---|---|---|---|
-| API Reference | [en/API.md](en/API.md) | [ru/API.md](ru/API.md) | [zh/API.md](zh/API.md) |
-| Business Analysis | [en/BUSINESS.md](en/BUSINESS.md) | [ru/BUSINESS.md](ru/BUSINESS.md) | [zh/BUSINESS.md](zh/BUSINESS.md) |
-| Colosseum | [en/COLOSSEUM.md](en/COLOSSEUM.md) | [ru/COLOSSEUM.md](ru/COLOSSEUM.md) | [zh/COLOSSEUM.md](zh/COLOSSEUM.md) |
-| LP Guide | [en/LP.md](en/LP.md) | [ru/LP.md](ru/LP.md) | [zh/LP.md](zh/LP.md) |
-| Mainnet Checklist | [en/MAINNET.md](en/MAINNET.md) | [ru/MAINNET.md](ru/MAINNET.md) | [zh/MAINNET.md](zh/MAINNET.md) |
-| Math | [en/MATH.md](en/MATH.md) | [ru/MATH.md](ru/MATH.md) | [zh/MATH.md](zh/MATH.md) |
-| Mint Rules | [en/MINT_RULES.md](en/MINT_RULES.md) | [ru/MINT_RULES.md](ru/MINT_RULES.md) | [zh/MINT_RULES.md](zh/MINT_RULES.md) |
-| Pitch | [en/PITCH.md](en/PITCH.md) | [ru/PITCH.md](ru/PITCH.md) | [zh/PITCH.md](zh/PITCH.md) |
-| Security | [en/SECURITY.md](en/SECURITY.md) | [ru/SECURITY.md](ru/SECURITY.md) | [zh/SECURITY.md](zh/SECURITY.md) |
-| Strategy | [en/STRATEGY.md](en/STRATEGY.md) | [ru/STRATEGY.md](ru/STRATEGY.md) | [zh/STRATEGY.md](zh/STRATEGY.md) |
-| Token | [en/TOKEN.md](en/TOKEN.md) | [ru/TOKEN.md](ru/TOKEN.md) | [zh/TOKEN.md](zh/TOKEN.md) |
-| Vault | [en/VAULT.md](en/VAULT.md) | [ru/VAULT.md](ru/VAULT.md) | [zh/VAULT.md](zh/VAULT.md) |
-| CPI Guide | [en/CPI.md](en/CPI.md) | — | — |
-| Architecture | [ARCHITECTURE.md](ARCHITECTURE.md) | — | — |
-| Scientific Paper | [PAPER.md](PAPER.md) | — | — |
-| Fee Change Guide | [FEE_CHANGE_GUIDE.md](FEE_CHANGE_GUIDE.md) | — | — |
-| **This file** | **SPEC.md** | — | — |
+| Document | Description |
+|----------|-------------|
+| [API Reference](API.md) | Transaction Builder API for AI agents |
+| [Architecture](ARCHITECTURE.md) | System architecture overview |
+| [Business Analysis](BUSINESS.md) | Unit economics and revenue model |
+| [Colosseum](COLOSSEUM.md) | Hackathon competitive analysis |
+| [CPI Guide](CPI.md) | Cross-program integration guide |
+| [LP Guide](LP.md) | Liquidity provider guide |
+| [Mainnet Checklist](MAINNET.md) | Mainnet readiness |
+| [Math](MATH.md) | Mathematical architecture |
+| [Mint Rules](MINT_RULES.md) | Token minting specification |
+| [Paper](PAPER.md) | Scientific whitepaper |
+| [Pitch](PITCH.md) | Investor pitch |
+| [Security](SECURITY.md) | Security audit report |
+| [Strategy](STRATEGY.md) | Holging strategy explained |
+| [Token Spec](TOKEN.md) | shortSOL token specification |
+| [Vault](VAULT.md) | Vault mechanics and analytics |
+| **This file** | **Protocol specification (source of truth)** |
 
 ---
 
 ## Changelog
 
-| Дата | Изменение |
+| Date | Change |
 |---|---|
-| 2026-03-30 | Создан SPEC.md — initial version |
-| 2026-03-30 | Комиссии обновлены: ×5/×10/×15/×20 (was ×0.5/×5/×10/×20) |
+| 2026-03-31 | Translated to English, updated funding rate section for adaptive rate (M001) |
+| 2026-03-31 | LP APY tables updated for adaptive funding rates |
+| 2026-03-30 | Created SPEC.md — initial version |
+| 2026-03-30 | Fees updated: ×5/×10/×15/×20 (was ×0.5/×5/×10/×20) |
 | 2026-03-30 | Break-even: ±9% (was ±4%) |
-| 2026-03-30 | LP APY: 65-73% (was 37-40%) |
 | 2026-03-30 | ARCHITECTURE.md rewrite v1.0 |
 | 2026-03-30 | Added PAPER.md (scientific paper) |
-| 2026-03-30 | Added CPI guide (docs/en/CPI.md) |
+| 2026-03-30 | Added CPI guide (docs/CPI.md) |
