@@ -228,7 +228,7 @@ Prices are sourced from **Pyth Network** (pull-based, ~400ms latency). Four vali
 
 If vault ratio drops below 95% during a redemption, the pool is automatically paused:
 
-$$\frac{\text{vault} \times 10000}{\text{obligations}} < 9500 \implies \text{paused} = \text{true}$$
+$$\frac{\text{vault} \times 10000}{\text{obligations}} < 9500 \;\Rightarrow\; \text{paused} = \text{true}$$
 
 ### 5.7 Security Properties
 
@@ -250,7 +250,7 @@ $$\frac{\text{vault} \times 10000}{\text{obligations}} < 9500 \implies \text{pau
 
 With roundtrip fee *f* = 0.40% (healthy vault):
 
-$$\frac{(x-1)^2}{2x} - 0.004 > 0 \implies |x - 1| > 0.089$$
+$$\frac{(x-1)^2}{2x} - 0.004 > 0 \;\Rightarrow\; |x - 1| > 0.089$$
 
 SOL must move approximately ±9% for the holging strategy to be profitable after fees.
 
