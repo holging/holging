@@ -3181,4 +3181,209 @@ describe("Adaptive funding rate", () => {
       : fundingEvent.data.effectiveRateBps.toNumber();
     assert.equal(effectiveRate, 6, "effective_rate_bps should be 6 (×2) at ~110% vault health — lowest achievable with solvency checks");
   });
+
+  // ── Edge case: circulating=0 (fresh pool) ─────────────────────────────────
+  it("returns base_rate when circulating=0 (fresh pool, no mints)", async () => {
+    // Set up a completely separate pool with no mints — circulating stays 0
+    const EDG_POOL_ID = "adp_edg";
+
+    // Create a separate USDC mint for this pool
+    const edgUsdcMint = await createMint(
+      provider.connection,
+      (authority as any).payer,
+      authority.publicKey,
+      null,
+      6
+    );
+
+    // Derive all PDAs for the edge-case pool
+    const [edgPoolStatePda] = PublicKey.findProgramAddressSync(
+      [ADP_POOL_SEED, Buffer.from(EDG_POOL_ID)],
+      programId
+    );
+    const [edgShortsolMintPda] = PublicKey.findProgramAddressSync(
+      [ADP_SHORTSOL_MINT_SEED, Buffer.from(EDG_POOL_ID)],
+      programId
+    );
+    const [edgMintAuthPda] = PublicKey.findProgramAddressSync(
+      [ADP_MINT_AUTH_SEED, Buffer.from(EDG_POOL_ID)],
+      programId
+    );
+    const [edgVaultUsdcPda] = PublicKey.findProgramAddressSync(
+      [ADP_VAULT_SEED, edgUsdcMint.toBuffer(), Buffer.from(EDG_POOL_ID)],
+      programId
+    );
+    const [edgFundingConfigPda] = PublicKey.findProgramAddressSync(
+      [ADP_FUNDING_SEED, edgPoolStatePda.toBuffer()],
+      programId
+    );
+
+    // Initialize the pool
+    await (program.methods as any)
+      .initialize(EDG_POOL_ID, 4, PYTH_FEED_ID_BYTES)
+      .accounts({
+        poolState: edgPoolStatePda,
+        shortsolMint: edgShortsolMintPda,
+        mintAuthority: edgMintAuthPda,
+        vaultUsdc: edgVaultUsdcPda,
+        usdcMint: edgUsdcMint,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        authority: authority.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .rpc();
+
+    // Initialize funding with base_rate=3
+    await (program.methods as any)
+      .initializeFunding(EDG_POOL_ID, 3)
+      .accounts({
+        admin: authority.publicKey,
+        poolState: edgPoolStatePda,
+        fundingConfig: edgFundingConfigPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    // Verify circulating is 0
+    const poolBefore = await (program.account as any).poolState.fetch(edgPoolStatePda);
+    assert.ok(poolBefore.circulating.eq(new BN(0)), "circulating should be 0 for fresh pool");
+    const kBefore: BN = poolBefore.k;
+
+    // Wait for elapsed time
+    await new Promise((r) => setTimeout(r, 3000));
+
+    // Accrue funding
+    const sig = await (program.methods as any)
+      .accrueFunding(EDG_POOL_ID)
+      .accounts({
+        poolState: edgPoolStatePda,
+        fundingConfig: edgFundingConfigPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+      })
+      .rpc({ commitment: "confirmed" });
+
+    const events = await parseFundingEvents(sig);
+
+    // FundingAccruedEvent should be emitted (k changed)
+    const fundingEvent = events.find((e) => e.name === "fundingAccruedEvent");
+    assert.ok(fundingEvent, "FundingAccruedEvent should be emitted even with circulating=0");
+
+    // effective_rate_bps should be base_rate (3) since calc_adaptive_rate returns base_rate when circulating=0
+    const effectiveRate = typeof fundingEvent.data.effectiveRateBps === "number"
+      ? fundingEvent.data.effectiveRateBps
+      : fundingEvent.data.effectiveRateBps.toNumber();
+    assert.equal(effectiveRate, 3, "effective_rate_bps should be base_rate (3) when circulating=0");
+
+    // k should decrease (k-decay formula applies regardless of circulating)
+    const poolAfter = await (program.account as any).poolState.fetch(edgPoolStatePda);
+    const kAfter: BN = poolAfter.k;
+    assert.ok(kAfter.lt(kBefore), "k should decrease even with circulating=0");
+
+    // No FundingDistributedEvent (freed_usdc=0 when obligations=0)
+    const distributedEvent = events.find((e) => e.name === "fundingDistributedEvent");
+    assert.ok(!distributedEvent, "FundingDistributedEvent should NOT be emitted when circulating=0 (no freed USDC)");
+  });
+
+  // ── Tier transition: critical → healthy recovery ──────────────────────────
+  it("recovers to ×0.5 rate after adding LP liquidity back above 200%", async () => {
+    // After the previous tier tests, vault health is at ~110% (lowest achievable).
+    // Add LP liquidity to push vault health back above 200%.
+    // obligations ≈ 1,000 USDC. Need vault > 2,000 USDC → add enough LP.
+    // Current vault is ~1,100. Adding 2,000 USDC LP → vault ~3,100 → ~310% health.
+
+    const lpDeposit = new BN(2_000_000_000); // 2,000 USDC
+
+    await new Promise((r) => setTimeout(r, 3000));
+
+    await (program.methods as any)
+      .addLiquidity(ADP_POOL_ID, lpDeposit)
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        lpMint: lpMintPda,
+        lpPosition: lpProviderLpPositionPda,
+        lpProviderLpAta: lpProviderLpAta,
+        usdcMint: adpUsdcMint,
+        lpProviderUsdc: lpProviderUsdcAta,
+        lpProvider: lpProvider.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: SPL_ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([lpProvider])
+      .rpc();
+
+    // Verify vault health is now above 200%
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    const vaultBal = pool.vaultBalance.toNumber();
+    const circulating = pool.circulating.toNumber();
+    const k = pool.k;
+    const price = pool.lastOraclePrice;
+    console.log("  After LP re-add for tier transition test:");
+    console.log("    Vault balance:", vaultBal);
+    console.log("    Circulating:  ", circulating);
+
+    // Wait for elapsed time
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const sig = await (program.methods as any)
+      .accrueFunding(ADP_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+      })
+      .rpc({ commitment: "confirmed" });
+
+    const events = await parseFundingEvents(sig);
+    const fundingEvent = events.find((e) => e.name === "fundingAccruedEvent");
+    assert.ok(fundingEvent, "FundingAccruedEvent should be emitted");
+
+    // After adding LP back, vault health should be >200% → ×0.5 → effective_rate=1
+    const effectiveRate = typeof fundingEvent.data.effectiveRateBps === "number"
+      ? fundingEvent.data.effectiveRateBps
+      : fundingEvent.data.effectiveRateBps.toNumber();
+    assert.equal(effectiveRate, 1, "effective_rate_bps should be 1 (×0.5) after recovering above 200% vault health");
+  });
+
+  // ── Inline funding via mint ───────────────────────────────────────────────
+  it("applies funding inline when minting with fundingConfig", async () => {
+    // After the tier transition test, vault health is >200% and funding was just accrued.
+    // Record k before, wait, then mint with fundingConfig to trigger apply_funding_inline.
+
+    const poolBefore = await (program.account as any).poolState.fetch(poolStatePda);
+    const kBefore: BN = poolBefore.k;
+
+    // Wait for elapsed time so there's funding to apply
+    await new Promise((r) => setTimeout(r, 3000));
+
+    // Mint with fundingConfig PDA (not null) to trigger inline funding
+    const sig = await (program.methods as any)
+      .mint(ADP_POOL_ID, new BN(100_000_000), new BN(0)) // 100 USDC
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        shortsolMint: shortsolMintPda,
+        mintAuthority: mintAuthPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        usdcMint: adpUsdcMint,
+        userUsdc: authorityUsdcAta,
+        userShortsol: authorityShortsolAta,
+        user: authority.publicKey,
+        fundingConfig: fundingConfigPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    // After mint, k should have decreased due to inline funding
+    const poolAfter = await (program.account as any).poolState.fetch(poolStatePda);
+    const kAfter: BN = poolAfter.k;
+    assert.ok(kAfter.lt(kBefore), "k should decrease after mint with inline funding applied");
+
+    // Verify the mint actually worked too (circulating increased)
+    assert.ok(poolAfter.circulating.gt(poolBefore.circulating), "circulating should increase after mint");
+  });
 });
