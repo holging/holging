@@ -184,3 +184,63 @@ export function calcRedeemUsdc(
   const usdcOut = grossUsdc.sub(fee);
   return { usdcOut, fee };
 }
+
+const MAX_FUNDING_RATE_BPS = 100;
+
+/**
+ * Mirrors on-chain calc_adaptive_rate (programs/holging/src/fees.rs:88-125).
+ * Vault health ratio determines the multiplier applied to the base funding rate:
+ *   > 200% → ×0.5 (healthy)
+ *   150-200% → ×1 (normal)
+ *   100-150% → ×2 (elevated)
+ *   < 100% → ×3 (critical)
+ * Result clamped to MAX_FUNDING_RATE_BPS (100 bps = 1%).
+ */
+export function calcAdaptiveRate(
+  baseRateBps: number,
+  vaultBalance: BN,
+  circulating: BN,
+  k: BN,
+  solPrice: BN,
+): { effectiveRateBps: number; tierLabel: string } {
+  if (circulating.isZero() || solPrice.isZero()) {
+    return { effectiveRateBps: baseRateBps, tierLabel: "Normal" };
+  }
+
+  const shortsolPrice = calcShortsolPrice(k, solPrice);
+  const obligations = circulating.mul(shortsolPrice).div(PRICE_PRECISION);
+  const obligationsUsdc = obligations.div(new BN(1000)); // 1e9 → 1e6
+
+  if (obligationsUsdc.isZero()) {
+    return { effectiveRateBps: baseRateBps, tierLabel: "Normal" };
+  }
+
+  const ratioBps = vaultBalance.mul(BPS_DENOMINATOR).div(obligationsUsdc);
+  const ratio = ratioBps.toNumber();
+
+  let effective: number;
+  let tierLabel: string;
+
+  if (ratio > 20_000) {
+    // > 200% — vault very healthy
+    effective = Math.floor(baseRateBps / 2);
+    tierLabel = "Healthy";
+  } else if (ratio > 15_000) {
+    // 150-200% — normal
+    effective = baseRateBps;
+    tierLabel = "Normal";
+  } else if (ratio > 10_000) {
+    // 100-150% — elevated
+    effective = baseRateBps * 2;
+    tierLabel = "Elevated";
+  } else {
+    // < 100% — critical
+    effective = baseRateBps * 3;
+    tierLabel = "Critical";
+  }
+
+  // Clamp to MAX_FUNDING_RATE_BPS
+  effective = Math.min(effective, MAX_FUNDING_RATE_BPS);
+
+  return { effectiveRateBps: effective, tierLabel };
+}

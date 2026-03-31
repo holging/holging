@@ -2413,6 +2413,10 @@
             "type": "u16"
           },
           {
+            "name": "effective_rate_bps",
+            "type": "u16"
+          },
+          {
             "name": "timestamp",
             "type": "i64"
           }
@@ -2476,6 +2480,10 @@
           {
             "name": "sol_price",
             "type": "u64"
+          },
+          {
+            "name": "effective_rate_bps",
+            "type": "u16"
           },
           {
             "name": "timestamp",

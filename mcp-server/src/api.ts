@@ -27,7 +27,7 @@ import {
   derivePoolPda, deriveShortsolMintPda, deriveMintAuthPda,
   deriveVaultPda, deriveFundingConfigPda, deriveLpMintPda, deriveLpPositionPda,
   fetchSolPrice, pythPriceToUsd, pythPriceToPrecision,
-  calcShortsolPrice, calcDynamicFee, calcMintTokens, calcRedeemUsdc,
+  calcShortsolPrice, calcDynamicFee, calcAdaptiveRate, calcMintTokens, calcRedeemUsdc,
   getPoolName, getAssetName, getFeedId,
 } from "./utils.js";
 
@@ -360,6 +360,18 @@ async function handleGetPool(res: any, poolId: string) {
   const obligations = circulating.mul(shortPrice).div(PRICE_PRECISION).div(new BN(1000));
   const coverage = obligations.isZero() ? "∞" : `${(vaultBalance.toNumber() / obligations.toNumber() * 100).toFixed(1)}%`;
 
+  // Fetch FundingConfig for adaptive rate — gracefully degrade if not found
+  let adaptiveFields: { effectiveRateBps: number; baseRateBps: number; fundingTier: string } | undefined;
+  try {
+    const [fundingPda] = deriveFundingConfigPda(poolId);
+    const fundingConfig: any = await (program!.account as any).fundingConfig.fetch(fundingPda);
+    const baseRate = fundingConfig.rateBps as number;
+    const { effectiveRateBps, tierLabel } = calcAdaptiveRate(baseRate, vaultBalance, circulating, k, priceBn);
+    adaptiveFields = { effectiveRateBps, baseRateBps: baseRate, fundingTier: tierLabel };
+  } catch {
+    // FundingConfig not initialized for this pool — omit adaptive fields
+  }
+
   jsonResponse(res, 200, {
     poolId,
     asset: getAssetName(poolId),
@@ -381,6 +393,7 @@ async function handleGetPool(res: any, poolId: string) {
     lpPrincipal: Number((poolState.lpPrincipal.toNumber() / 1e6).toFixed(2)),
     minLpDeposit: Number((poolState.minLpDeposit.toNumber() / 1e6).toFixed(2)),
     authority: poolState.authority.toBase58(),
+    ...(adaptiveFields ?? {}),
   });
 }
 
