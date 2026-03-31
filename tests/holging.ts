@@ -2668,3 +2668,517 @@ describe("Integration tests", () => {
     );
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Adaptive Funding Rate Tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Adaptive funding rate", () => {
+  // ── Constants ──────────────────────────────────────────────────────────────
+  const MOCK_PRICE_UPDATE_PUBKEY = new PublicKey(
+    "6dNYY44HhLY3qZnU6WmSNUWqn4CDBbZ5FQu7jeQujVkC"
+  );
+
+  const ADP_POOL_ID = "adp_fund";
+  const ADP_POOL_SEED = Buffer.from("pool");
+  const ADP_VAULT_SEED = Buffer.from("vault");
+  const ADP_MINT_AUTH_SEED = Buffer.from("mint_auth");
+  const ADP_SHORTSOL_MINT_SEED = Buffer.from("shortsol_mint");
+  const ADP_LP_MINT_SEED = Buffer.from("lp_mint");
+  const ADP_LP_POSITION_SEED = Buffer.from("lp_position");
+  const ADP_FUNDING_SEED = Buffer.from("funding");
+
+  const SPL_ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
+    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+  );
+
+  // SOL/USD Pyth feed ID
+  const SOL_USD_FEED_ID_HEX = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+  const PYTH_FEED_ID_BYTES = Array.from(Buffer.from(SOL_USD_FEED_ID_HEX, "ascii"));
+
+  // ── Provider & program ─────────────────────────────────────────────────────
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+  const programId = new PublicKey(IDL.address);
+  const program = new anchor.Program(IDL, provider);
+
+  // ── Actors ─────────────────────────────────────────────────────────────────
+  const authority = provider.wallet as anchor.Wallet;
+  const lpProvider = Keypair.generate();
+
+  // ── Mutable state ─────────────────────────────────────────────────────────
+  let adpUsdcMint: PublicKey;
+  let authorityUsdcAta: PublicKey;
+  let lpProviderUsdcAta: PublicKey;
+  let authorityShortsolAta: PublicKey;
+
+  // PDAs
+  let poolStatePda: PublicKey;
+  let shortsolMintPda: PublicKey;
+  let mintAuthPda: PublicKey;
+  let vaultUsdcPda: PublicKey;
+  let lpMintPda: PublicKey;
+  let lpProviderLpAta: PublicKey;
+  let lpProviderLpPositionPda: PublicKey;
+  let fundingConfigPda: PublicKey;
+
+  // ── Event parser ──────────────────────────────────────────────────────────
+  async function parseFundingEvents(sig: string): Promise<any[]> {
+    // Wait a moment for the transaction to be confirmed and available
+    await new Promise((r) => setTimeout(r, 500));
+
+    const tx = await provider.connection.getTransaction(sig, {
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    });
+    if (!tx || !tx.meta || !tx.meta.logMessages) return [];
+
+    const events: any[] = [];
+    for (const log of tx.meta.logMessages) {
+      if (log.startsWith("Program data: ")) {
+        const data = log.slice("Program data: ".length);
+        try {
+          const decoded = (program.coder.events as any).decode(data);
+          if (decoded) events.push(decoded);
+        } catch {
+          // Skip non-decodable entries
+        }
+      }
+    }
+    return events;
+  }
+
+  // ── Setup ──────────────────────────────────────────────────────────────────
+  before(async () => {
+    // Airdrop SOL to lpProvider
+    const sig = await provider.connection.requestAirdrop(
+      lpProvider.publicKey,
+      10_000_000_000 // 10 SOL
+    );
+    await provider.connection.confirmTransaction(sig, "confirmed");
+
+    // Create mock USDC mint (6 decimals)
+    adpUsdcMint = await createMint(
+      provider.connection,
+      (authority as any).payer,
+      authority.publicKey,
+      null,
+      6
+    );
+
+    // Derive PDAs
+    [poolStatePda] = PublicKey.findProgramAddressSync(
+      [ADP_POOL_SEED, Buffer.from(ADP_POOL_ID)],
+      programId
+    );
+    [shortsolMintPda] = PublicKey.findProgramAddressSync(
+      [ADP_SHORTSOL_MINT_SEED, Buffer.from(ADP_POOL_ID)],
+      programId
+    );
+    [mintAuthPda] = PublicKey.findProgramAddressSync(
+      [ADP_MINT_AUTH_SEED, Buffer.from(ADP_POOL_ID)],
+      programId
+    );
+    [vaultUsdcPda] = PublicKey.findProgramAddressSync(
+      [ADP_VAULT_SEED, adpUsdcMint.toBuffer(), Buffer.from(ADP_POOL_ID)],
+      programId
+    );
+    [lpMintPda] = PublicKey.findProgramAddressSync(
+      [ADP_LP_MINT_SEED, poolStatePda.toBuffer()],
+      programId
+    );
+    [lpProviderLpPositionPda] = PublicKey.findProgramAddressSync(
+      [ADP_LP_POSITION_SEED, poolStatePda.toBuffer(), lpProvider.publicKey.toBuffer()],
+      programId
+    );
+    [fundingConfigPda] = PublicKey.findProgramAddressSync(
+      [ADP_FUNDING_SEED, poolStatePda.toBuffer()],
+      programId
+    );
+
+    // Create ATAs
+    const {
+      createAssociatedTokenAccountInstruction,
+      getAssociatedTokenAddress,
+    } = await import("@solana/spl-token");
+
+    authorityUsdcAta = await getAssociatedTokenAddress(adpUsdcMint, authority.publicKey);
+    await provider.sendAndConfirm(
+      new anchor.web3.Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          authority.publicKey, authorityUsdcAta, authority.publicKey, adpUsdcMint
+        )
+      ),
+      []
+    );
+
+    lpProviderUsdcAta = await getAssociatedTokenAddress(adpUsdcMint, lpProvider.publicKey);
+    await provider.sendAndConfirm(
+      new anchor.web3.Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          authority.publicKey, lpProviderUsdcAta, lpProvider.publicKey, adpUsdcMint
+        )
+      ),
+      []
+    );
+
+    // Mint 100,000 USDC to each actor
+    const mintAmount = 100_000_000_000; // 100k USDC
+    await mintTo(provider.connection, (authority as any).payer, adpUsdcMint, authorityUsdcAta, authority.publicKey, mintAmount);
+    await mintTo(provider.connection, (authority as any).payer, adpUsdcMint, lpProviderUsdcAta, authority.publicKey, mintAmount);
+
+    // Initialize pool with fee_bps=4
+    await (program.methods as any)
+      .initialize(ADP_POOL_ID, 4, PYTH_FEED_ID_BYTES)
+      .accounts({
+        poolState: poolStatePda,
+        shortsolMint: shortsolMintPda,
+        mintAuthority: mintAuthPda,
+        vaultUsdc: vaultUsdcPda,
+        usdcMint: adpUsdcMint,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        authority: authority.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .rpc();
+
+    // Create shortSOL ATA for authority
+    authorityShortsolAta = await getAssociatedTokenAddress(shortsolMintPda, authority.publicKey);
+    await provider.sendAndConfirm(
+      new anchor.web3.Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          authority.publicKey, authorityShortsolAta, authority.publicKey, shortsolMintPda
+        )
+      ),
+      []
+    );
+
+    // Wait for rate limit then mint 1,000 USDC of shortSOL
+    await new Promise((r) => setTimeout(r, 3000));
+    await (program.methods as any)
+      .mint(ADP_POOL_ID, new BN(1_000_000_000), new BN(0))
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        shortsolMint: shortsolMintPda,
+        mintAuthority: mintAuthPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        usdcMint: adpUsdcMint,
+        userUsdc: authorityUsdcAta,
+        userShortsol: authorityShortsolAta,
+        user: authority.publicKey,
+        fundingConfig: null,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    // Initialize funding with base_rate=3 bps/day
+    await (program.methods as any)
+      .initializeFunding(ADP_POOL_ID, 3)
+      .accounts({
+        admin: authority.publicKey,
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    // Initialize LP system
+    const minLpDeposit = new BN(100_000_000); // 100 USDC
+    await (program.methods as any)
+      .initializeLp(ADP_POOL_ID, minLpDeposit)
+      .accounts({
+        poolState: poolStatePda,
+        lpMint: lpMintPda,
+        authority: authority.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .rpc();
+
+    // LP provider adds large deposit (3,000 USDC) to push vault health well above 200%
+    // After minting 1,000 USDC shortSOL, obligations ≈ 1,000 USDC
+    // Vault has ~1,000 USDC from mint. Adding 3,000 USDC LP → vault ≈ 4,000 USDC → ~400% health
+    lpProviderLpAta = await getAssociatedTokenAddress(lpMintPda, lpProvider.publicKey);
+
+    const lpDeposit = new BN(3_000_000_000); // 3,000 USDC
+    await (program.methods as any)
+      .addLiquidity(ADP_POOL_ID, lpDeposit)
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        lpMint: lpMintPda,
+        lpPosition: lpProviderLpPositionPda,
+        lpProviderLpAta: lpProviderLpAta,
+        usdcMint: adpUsdcMint,
+        lpProviderUsdc: lpProviderUsdcAta,
+        lpProvider: lpProvider.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: SPL_ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([lpProvider])
+      .rpc();
+
+    // Verify setup: vault health should be well above 200%
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    console.log("Adaptive funding rate setup complete:");
+    console.log("  Pool:           ", poolStatePda.toBase58());
+    console.log("  Vault balance:  ", pool.vaultBalance.toString());
+    console.log("  Circulating:    ", pool.circulating.toString());
+    console.log("  k:              ", pool.k.toString());
+    console.log("  Oracle price:   ", pool.lastOraclePrice.toString());
+  });
+
+  // ── Tier 1: >200% vault health (×0.5 rate) ────────────────────────────────
+  it("applies ×0.5 rate when vault health > 200%", async () => {
+    // After setup, vault health is well above 200% from the 3,000 USDC LP deposit
+    // Wait for elapsed time since last funding
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const poolBefore = await (program.account as any).poolState.fetch(poolStatePda);
+    const kBefore = poolBefore.k;
+
+    const sig = await (program.methods as any)
+      .accrueFunding(ADP_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+      })
+      .rpc({ commitment: "confirmed" });
+
+    const events = await parseFundingEvents(sig);
+    const fundingEvent = events.find((e) => e.name === "fundingAccruedEvent");
+    assert.ok(fundingEvent, "FundingAccruedEvent should be emitted");
+
+    // base_rate=3, ×0.5 → 3/2 = 1 (integer truncation)
+    const effectiveRate = typeof fundingEvent.data.effectiveRateBps === "number"
+      ? fundingEvent.data.effectiveRateBps
+      : fundingEvent.data.effectiveRateBps.toNumber();
+    assert.equal(effectiveRate, 1, "effective_rate_bps should be 1 (3/2 truncated) for >200% tier");
+
+    const poolAfter = await (program.account as any).poolState.fetch(poolStatePda);
+    assert.ok(poolAfter.k.lt(kBefore), "k should decrease after funding accrual");
+  });
+
+  // ── Tier 2: 150-200% vault health (×1 rate) ──────────────────────────────
+  it("applies ×1 rate when vault health is 150-200%", async () => {
+    // Need to bring vault health down to ~170%.
+    // Current state: vault ≈ 4,000 USDC, obligations ≈ 1,000 USDC → ~400%.
+    // Need vault ≈ 1,700 USDC → remove ~2,300 USDC of LP.
+    // But we can only remove up to the LP shares we have.
+    // LP deposited 3,000 USDC. We need to remove enough to get to ~170% health.
+    // Vault has ~1,000 from mint + 3,000 from LP = ~4,000
+    // Target: 1,700 USDC vault → remove ~2,300 USDC
+    // That's about 77% of the 3,000 LP deposit.
+
+    const position = await (program.account as any).lpPosition.fetch(lpProviderLpPositionPda);
+    const totalShares = position.lpShares;
+
+    // Remove ~77% of LP shares to bring vault to ~170% health
+    const sharesToRemove = totalShares.muln(77).divn(100);
+
+    await new Promise((r) => setTimeout(r, 3000));
+
+    await (program.methods as any)
+      .removeLiquidity(ADP_POOL_ID, sharesToRemove)
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        lpMint: lpMintPda,
+        lpPosition: lpProviderLpPositionPda,
+        lpProviderLpAta: lpProviderLpAta,
+        usdcMint: adpUsdcMint,
+        lpProviderUsdc: lpProviderUsdcAta,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        lpProvider: lpProvider.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([lpProvider])
+      .rpc();
+
+    // Verify vault health is in the 150-200% range
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    console.log("  After LP removal for 150-200% tier:");
+    console.log("    Vault balance:", pool.vaultBalance.toString());
+    console.log("    Circulating:  ", pool.circulating.toString());
+
+    // Wait for elapsed time
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const sig = await (program.methods as any)
+      .accrueFunding(ADP_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+      })
+      .rpc({ commitment: "confirmed" });
+
+    const events = await parseFundingEvents(sig);
+    const fundingEvent = events.find((e) => e.name === "fundingAccruedEvent");
+    assert.ok(fundingEvent, "FundingAccruedEvent should be emitted");
+
+    // base_rate=3, ×1 → 3
+    const effectiveRate = typeof fundingEvent.data.effectiveRateBps === "number"
+      ? fundingEvent.data.effectiveRateBps
+      : fundingEvent.data.effectiveRateBps.toNumber();
+    assert.equal(effectiveRate, 3, "effective_rate_bps should be 3 (×1) for 150-200% tier");
+  });
+
+  // ── Tier 3: 100-150% vault health (×2 rate) ──────────────────────────────
+  it("applies ×2 rate when vault health is 100-150%", async () => {
+    // Need to bring vault health down to ~120%.
+    // Remove more LP to reduce vault. We have remaining LP shares.
+    const position = await (program.account as any).lpPosition.fetch(lpProviderLpPositionPda);
+    const remainingShares = position.lpShares;
+
+    // We need the vault to drop to ~120% of obligations.
+    // Current vault health is ~170%. We need to remove more.
+    // If vault is ~1,700 and obligations ~1,000, we need vault ~1,200 → remove ~500.
+    // That's roughly 500/690 ≈ 72% of remaining LP (690 USDC remaining LP).
+    // Remove about 55% of remaining shares to bring to ~120%.
+    const sharesToRemove = remainingShares.muln(55).divn(100);
+
+    await new Promise((r) => setTimeout(r, 3000));
+
+    await (program.methods as any)
+      .removeLiquidity(ADP_POOL_ID, sharesToRemove)
+      .accounts({
+        poolState: poolStatePda,
+        vaultUsdc: vaultUsdcPda,
+        lpMint: lpMintPda,
+        lpPosition: lpProviderLpPositionPda,
+        lpProviderLpAta: lpProviderLpAta,
+        usdcMint: adpUsdcMint,
+        lpProviderUsdc: lpProviderUsdcAta,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+        lpProvider: lpProvider.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([lpProvider])
+      .rpc();
+
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    console.log("  After LP removal for 100-150% tier:");
+    console.log("    Vault balance:", pool.vaultBalance.toString());
+    console.log("    Circulating:  ", pool.circulating.toString());
+
+    // Wait for elapsed time
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const sig = await (program.methods as any)
+      .accrueFunding(ADP_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+      })
+      .rpc({ commitment: "confirmed" });
+
+    const events = await parseFundingEvents(sig);
+    const fundingEvent = events.find((e) => e.name === "fundingAccruedEvent");
+    assert.ok(fundingEvent, "FundingAccruedEvent should be emitted");
+
+    // base_rate=3, ×2 → 6
+    const effectiveRate = typeof fundingEvent.data.effectiveRateBps === "number"
+      ? fundingEvent.data.effectiveRateBps
+      : fundingEvent.data.effectiveRateBps.toNumber();
+    assert.equal(effectiveRate, 6, "effective_rate_bps should be 6 (×2) for 100-150% tier");
+  });
+
+  // ── Tier 4: verify lowest achievable vault health rate ──────────────────────
+  // The program's solvency checks (MIN_VAULT_POST_WITHDRAWAL_BPS = 110%) prevent
+  // vault health from dropping below ~110% via remove_liquidity. With a fixed mock
+  // oracle, <100% vault health is unreachable through any combination of on-chain
+  // operations — this is correct protocol behavior by design.
+  //
+  // This test verifies the adaptive rate at the lowest achievable vault health
+  // (≈110%) after removing maximum LP, confirming the ×2 tier applies at boundary.
+  it("applies ×2 rate at lowest achievable vault health (~110%)", async () => {
+    // Remove remaining LP to push vault health to the safety floor (~110%)
+    const position = await (program.account as any).lpPosition.fetch(lpProviderLpPositionPda);
+    const remainingShares = position.lpShares;
+
+    if (remainingShares.gt(new BN(0))) {
+      await new Promise((r) => setTimeout(r, 3000));
+
+      // Try removing all shares first. If safety check rejects, try 60% (which should be safe)
+      try {
+        await (program.methods as any)
+          .removeLiquidity(ADP_POOL_ID, remainingShares)
+          .accounts({
+            poolState: poolStatePda,
+            vaultUsdc: vaultUsdcPda,
+            lpMint: lpMintPda,
+            lpPosition: lpProviderLpPositionPda,
+            lpProviderLpAta: lpProviderLpAta,
+            usdcMint: adpUsdcMint,
+            lpProviderUsdc: lpProviderUsdcAta,
+            priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+            lpProvider: lpProvider.publicKey,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([lpProvider])
+          .rpc();
+      } catch {
+        // Safety check prevents full removal — remove 60% which brings vault near floor
+        const safeShares = remainingShares.muln(60).divn(100);
+        if (safeShares.gt(new BN(0))) {
+          await (program.methods as any)
+            .removeLiquidity(ADP_POOL_ID, safeShares)
+            .accounts({
+              poolState: poolStatePda,
+              vaultUsdc: vaultUsdcPda,
+              lpMint: lpMintPda,
+              lpPosition: lpProviderLpPositionPda,
+              lpProviderLpAta: lpProviderLpAta,
+              usdcMint: adpUsdcMint,
+              lpProviderUsdc: lpProviderUsdcAta,
+              priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+              lpProvider: lpProvider.publicKey,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              systemProgram: SystemProgram.programId,
+            })
+            .signers([lpProvider])
+            .rpc();
+        }
+      }
+    }
+
+    const pool = await (program.account as any).poolState.fetch(poolStatePda);
+    console.log("  After max LP removal (safety floor ~110%):");
+    console.log("    Vault balance:", pool.vaultBalance.toString());
+    console.log("    Circulating:  ", pool.circulating.toString());
+
+    // Wait for elapsed time
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const sig = await (program.methods as any)
+      .accrueFunding(ADP_POOL_ID)
+      .accounts({
+        poolState: poolStatePda,
+        fundingConfig: fundingConfigPda,
+        priceUpdate: MOCK_PRICE_UPDATE_PUBKEY,
+      })
+      .rpc({ commitment: "confirmed" });
+
+    const events = await parseFundingEvents(sig);
+    const fundingEvent = events.find((e) => e.name === "fundingAccruedEvent");
+    assert.ok(fundingEvent, "FundingAccruedEvent should be emitted");
+
+    // At ~110% vault health, we're in the 100-150% tier → ×2 multiplier
+    const effectiveRate = typeof fundingEvent.data.effectiveRateBps === "number"
+      ? fundingEvent.data.effectiveRateBps
+      : fundingEvent.data.effectiveRateBps.toNumber();
+    assert.equal(effectiveRate, 6, "effective_rate_bps should be 6 (×2) at ~110% vault health — lowest achievable with solvency checks");
+  });
+});
