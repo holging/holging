@@ -1,7 +1,8 @@
 import { usePool } from "../hooks/usePool";
 import { usePythPrice } from "../hooks/usePythPrice";
+import { useFundingConfig } from "../hooks/useFundingConfig";
 import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
-import { calcShortsolPrice, calcDynamicFee } from "../utils/math";
+import { calcShortsolPrice, calcDynamicFee, calcAdaptiveRate } from "../utils/math";
 import { PROGRAM_ID } from "../utils/program";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
@@ -29,6 +30,7 @@ function shortenAddress(addr: string): string {
 
 export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
   const { pool } = usePool(poolId);
+  const { config: fundingConfig } = useFundingConfig(poolId);
   const { solPriceUsd } = usePythPrice(POOLS[poolId]?.feedId);
   const poolConfig = POOLS[poolId];
   const tokenName = poolConfig?.name ?? "shortSOL";
@@ -96,8 +98,20 @@ export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
   const oracleStatus = oracleAge !== null && oracleAge < MAX_STALENESS_DEVNET ? "Fresh" : "Stale";
   const oracleClass = oracleAge !== null && oracleAge < 300 ? "vault-green" : oracleAge !== null && oracleAge < MAX_STALENESS_DEVNET ? "vault-yellow" : "vault-red";
 
-  // LP APY (realistic)
-  const fundingApyBase = (1 - Math.pow(0.999, 365)) * 100;
+  // Adaptive funding rate
+  const adaptiveRate = fundingConfig && solPriceBn
+    ? calcAdaptiveRate(
+        fundingConfig.rateBps,
+        new BN(pool.vaultBalance),
+        new BN(pool.circulating),
+        k,
+        solPriceBn
+      )
+    : null;
+
+  // LP APY — use adaptive rate when available, fallback to hardcoded 0.1%/day
+  const effectiveDailyRate = adaptiveRate ? adaptiveRate.effectiveRateBps / 10000 : 0.001;
+  const fundingApyBase = (1 - Math.pow(1 - effectiveDailyRate, 365)) * 100;
   const fundingApy = fundingApyBase * Math.min(utilization / 100, 1);
 
   // Fee tiers explanation
@@ -188,6 +202,21 @@ export function StatePage({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
         <div className="risk-row"><span>Fees Collected</span><span>{fmtUsdc(feesCollected)}</span></div>
         <div className="risk-row"><span>Current Fee</span><span>{(dynamicFeeBps / 100).toFixed(2)}% ({feeLevel})</span></div>
         <div className="risk-row"><span>Pool Status</span><span className={pool.paused ? "vault-red" : "vault-green"}>{pool.paused ? "⏸ PAUSED" : "● ACTIVE"}</span></div>
+      </div>
+
+      {/* ── ADAPTIVE FUNDING ── */}
+      <div className="risk-section">
+        <h4>ADAPTIVE FUNDING</h4>
+        {adaptiveRate && fundingConfig ? (
+          <>
+            <div className="risk-row"><span>Base Rate</span><span>{fundingConfig.rateBps} bps/day</span></div>
+            <div className="risk-row"><span>Effective Rate</span><span>{adaptiveRate.effectiveRateBps} bps/day</span></div>
+            <div className="risk-row"><span>Tier</span><span>{adaptiveRate.tierLabel}</span></div>
+            <div className="risk-row"><span>Annualized</span><span>{fmtNum(fundingApyBase, 2)}%</span></div>
+          </>
+        ) : (
+          <p className="form-desc">FundingConfig not initialized for this pool</p>
+        )}
       </div>
 
       {/* ── LP SYSTEM ── */}

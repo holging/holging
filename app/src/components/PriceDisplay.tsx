@@ -1,12 +1,14 @@
 import { usePythPrice } from "../hooks/usePythPrice";
 import { usePool } from "../hooks/usePool";
+import { useFundingConfig } from "../hooks/useFundingConfig";
 import { POOLS, DEFAULT_POOL_ID } from "../config/pools";
 import BN from "bn.js";
-import { calcShortsolPrice, calcDynamicFee, formatPrice } from "../utils/math";
+import { calcShortsolPrice, calcDynamicFee, calcAdaptiveRate, formatPrice } from "../utils/math";
 
 export function PriceDisplay({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) {
   const { solPriceUsd, loading: priceLoading, error: priceError } = usePythPrice(POOLS[poolId]?.feedId);
   const { pool, loading: poolLoading } = usePool(poolId);
+  const { config: fundingConfig } = useFundingConfig(poolId);
 
   const shortsolPriceUsd =
     pool && solPriceUsd
@@ -32,6 +34,20 @@ export function PriceDisplay({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) 
         })()
       : pool?.feeBps ?? 0;
 
+  const adaptiveRate =
+    pool && solPriceUsd && fundingConfig
+      ? (() => {
+          const solPriceBn = new BN(Math.round(solPriceUsd * 1e9));
+          return calcAdaptiveRate(
+            fundingConfig.rateBps,
+            new BN(pool.vaultBalance),
+            new BN(pool.circulating),
+            pool.k,
+            solPriceBn
+          );
+        })()
+      : null;
+
   return (
     <div className="price-display">
       <div className="price-card">
@@ -54,6 +70,12 @@ export function PriceDisplay({ poolId = DEFAULT_POOL_ID }: { poolId?: string }) 
         <div className="price-card">
           <span className="price-label">Fee</span>
           <span className="price-value">{(dynamicFeeBps / 100).toFixed(2)}%</span>
+        </div>
+      )}
+      {adaptiveRate && (
+        <div className="price-card">
+          <span className="price-label">Rate</span>
+          <span className="price-value">{adaptiveRate.effectiveRateBps} bps/day ({adaptiveRate.tierLabel})</span>
         </div>
       )}
     </div>
