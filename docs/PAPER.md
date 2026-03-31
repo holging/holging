@@ -24,7 +24,7 @@ The ideal short-exposure instrument would:
 
 We introduce a multiplicative inverse token defined by:
 
-$$\text{shortSOL}(t) = \frac{k}{P(t)},$$
+$$\text{shortSOL}(t) = \frac{k}{P(t)}$$
 
 where *k* is a normalizing constant and *P(t)* is the oracle price. This construction:
 
@@ -51,41 +51,41 @@ where *k* is a normalizing constant and *P(t)* is the oracle price. This constru
 
 Let *P(t)* denote the price of the underlying asset (e.g., SOL/USD) at time *t*, sourced from a Pyth Network oracle. The inverse token price is:
 
-$$S(t) = \frac{k \cdot 10^9}{P(t)},$$
+$$S(t) = \frac{k \cdot 10^{9}}{P(t)}$$
 
-where *k ∈ ℤ⁺* is a normalizing constant stored as a 128-bit unsigned integer, and *10⁹* is the fixed-point precision factor.
+where $k \in \mathbb{Z}^{+}$ is a normalizing constant stored as a 128-bit unsigned integer, and $10^{9}$ is the fixed-point precision factor.
 
-At pool initialization with SOL price *P₀*:
+At pool initialization with SOL price $P_0$:
 
-$$k = \frac{P_0^2}{10^9}, \quad \text{so} \quad S(0) = \frac{P_0^2 / 10^9 \cdot 10^9}{P_0} = P_0.$$
+$$k = \frac{P_0^{2}}{10^{9}}, \quad S(0) = \frac{P_0^{2} / 10^{9} \cdot 10^{9}}{P_0} = P_0$$
 
 The inverse token starts at parity with the underlying asset.
 
 ### 2.2 Path Independence and Absence of Volatility Decay
 
-**Claim.** The return on shortSOL between times *t₀* and *t₁* is:
+**Claim.** The return on shortSOL between times $t_0$ and $t_1$ is:
 
-$$R = \frac{S(t_1)}{S(t_0)} - 1 = \frac{P(t_0)}{P(t_1)} - 1.$$
+$$R = \frac{S(t_1)}{S(t_0)} - 1 = \frac{P(t_0)}{P(t_1)} - 1$$
 
 *Proof.* Direct computation:
 
-$$\frac{S(t_1)}{S(t_0)} = \frac{k / P(t_1)}{k / P(t_0)} = \frac{P(t_0)}{P(t_1)}.$$
+$$\frac{S(t_1)}{S(t_0)} = \frac{k / P(t_1)}{k / P(t_0)} = \frac{P(t_0)}{P(t_1)}$$
 
 The constant *k* cancels; the return depends only on the endpoint prices, not the path taken. □
 
-**Contrast with daily-rebalanced inverse tokens.** A −1× daily-rebalanced token with daily returns *r₁, r₂, ..., r_n* has cumulative return:
+**Contrast with daily-rebalanced inverse tokens.** A −1× daily-rebalanced token with daily returns $r_1, r_2, \ldots, r_n$ has cumulative return:
 
-$$R_{\text{rebal}} = \prod_{i=1}^{n} (1 - r_i) - 1.$$
+$$R_{\text{rebal}} = \prod_{i=1}^{n} (1 - r_i) - 1$$
 
-For a sequence +10%, −10%: *R_rebal = (0.9)(1.1) − 1 = −0.01*, a 1% loss. Our model: *R = P₀/P_n − 1 = P₀/P₀ − 1 = 0*. No volatility decay.
+For a sequence +10%, −10%: $R_{\text{rebal}} = (0.9)(1.1) - 1 = -0.01$, a 1% loss. Our model: $R = P_0/P_n - 1 = 0$. No volatility decay.
 
 ### 2.3 Properties of 1/x
 
-The function *f(x) = 1/x* on *(0, ∞)* has:
+The function *f(x) = 1/x* on $(0, \infty)$ has:
 
-$$f'(x) = -\frac{1}{x^2} < 0, \quad f''(x) = \frac{2}{x^3} > 0.$$
+$$f'(x) = -\frac{1}{x^2} < 0, \quad f''(x) = \frac{2}{x^3} > 0$$
 
-The strict convexity (*f'' > 0*) is the foundation of the holging strategy's positive gamma.
+The strict convexity ($f'' > 0$) is the foundation of the holging strategy's positive gamma.
 
 ---
 
@@ -95,30 +95,30 @@ The strict convexity (*f'' > 0*) is the foundation of the holging strategy's pos
 
 The *holging* portfolio allocates equal dollar weights to the asset and its inverse:
 
-$$V(x) = \frac{1}{2}x + \frac{1}{2} \cdot \frac{1}{x} = \frac{x + x^{-1}}{2},$$
+$$V(x) = \frac{1}{2} \cdot x + \frac{1}{2} \cdot \frac{1}{x} = \frac{x + x^{-1}}{2}$$
 
-where *x = P(t)/P(0) > 0* is the price multiplier.
+where $x = P(t)/P(0) > 0$ is the price multiplier.
 
 ### 3.2 Non-Negative P&L Guarantee
 
 **Theorem 1 (AM-GM).** *For all x > 0:*
 
-$$V(x) = \frac{x + x^{-1}}{2} \geq \sqrt{x \cdot x^{-1}} = 1.$$
+$$V(x) = \frac{x + x^{-1}}{2} \geq \sqrt{x \cdot x^{-1}} = 1$$
 
 *Equality holds if and only if x = 1.*
 
 The portfolio profit-and-loss is:
 
-$$\text{P\&L}(x) = V(x) - 1 = \frac{(x-1)^2}{2x} \geq 0.$$
+$$\text{PnL}(x) = V(x) - 1 = \frac{(x-1)^2}{2x} \geq 0$$
 
 This is the core guarantee: **the holging portfolio never loses money in gross terms**, regardless of price direction or magnitude.
 
 ### 3.3 Greeks
 
-At entry (*x = 1*):
+At entry ($x = 1$):
 
-- **Delta:** *dV/dx = (1 − x⁻²)/2 = 0*. Delta-neutral.
-- **Gamma:** *d²V/dx² = x⁻³ > 0*. Strictly positive for all *x > 0*.
+- **Delta:** $dV/dx = (1 - x^{-2})/2 = 0$. Delta-neutral.
+- **Gamma:** $d^{2}V/dx^{2} = x^{-3} > 0$. Strictly positive for all $x > 0$.
 
 The positive gamma means the portfolio auto-adjusts: as price moves in either direction, the portfolio's net exposure increases in the profitable direction.
 
@@ -140,11 +140,11 @@ Holging is a **perpetual straddle with zero theta decay**.
 
 A Uniswap V2 constant-product LP has portfolio value:
 
-$$V_{\text{LP}}(x) = \frac{2\sqrt{x}}{1 + x}.$$
+$$V_{\text{LP}}(x) = \frac{2\sqrt{x}}{1 + x}$$
 
-This is concave (*d²V/dx² < 0*) — negative gamma, i.e., impermanent loss. The holging portfolio has the complementary shape:
+This is concave ($d^{2}V/dx^{2} < 0$) — negative gamma, i.e., impermanent loss. The holging portfolio has the complementary shape:
 
-$$V_{\text{holging}}(x) + V_{\text{LP}}(x) \approx 1 + O(x^{-1}).$$
+$$V_{\text{holging}}(x) + V_{\text{LP}}(x) \approx 1 + O(x^{-1})$$
 
 In economic terms: holging *captures* the volatility premium that LPs *lose*.
 
@@ -152,18 +152,18 @@ In economic terms: holging *captures* the volatility premium that LPs *lose*.
 
 ## 4. Formal Verification
 
-We formalized and proved 8 core theorems in **Lean 4** using the **Mathlib** library. The proofs operate over ℝ and verify the exact mathematical claims, not approximations.
+We formalized and proved 8 core theorems in **Lean 4** using the **Mathlib** library. The proofs operate over $\mathbb{R}$ and verify the exact mathematical claims, not approximations.
 
 | # | Theorem | Statement | Lean 4 Tactic |
 |---|---------|-----------|---------------|
-| 1 | Pricing invariant | *P₀² / P₀ = P₀* | `field_simp` |
-| 2 | P&L formula | *(x + 1/x)/2 − 1 = (x−1)²/(2x)* | `field_simp; ring` |
-| 3 | P&L non-negativity | *(x−1)²/(2x) ≥ 0* for *x > 0* | `div_nonneg, sq_nonneg` |
-| 4 | AM-GM for holging | *x + 1/x ≥ 2* for *x > 0* | from theorems 2, 3 |
-| 5 | Portfolio value ≥ 1 | *(x + 1/x)/2 ≥ 1* | from theorem 4 |
-| 6 | Zero P&L iff no move | *(x−1)²/(2x) = 0 ⟺ x = 1* | `div_eq_zero_iff, sq_eq_zero_iff` |
-| 7 | Positive gamma | *1/x³ > 0* for *x > 0* | `positivity` |
-| 8 | Inverse relationship | *k/(2P) < k/P* for *P, k > 0* | `div_lt_div_of_pos_left` |
+| 1 | Pricing invariant | $P_0^{2} / P_0 = P_0$ | `field_simp` |
+| 2 | PnL formula | $(x + 1/x)/2 - 1 = (x-1)^{2}/(2x)$ | `field_simp; ring` |
+| 3 | PnL non-negativity | $(x-1)^{2}/(2x) \geq 0$ for $x > 0$ | `div_nonneg, sq_nonneg` |
+| 4 | AM-GM for holging | $x + 1/x \geq 2$ for $x > 0$ | from theorems 2, 3 |
+| 5 | Portfolio value ≥ 1 | $(x + 1/x)/2 \geq 1$ | from theorem 4 |
+| 6 | Zero PnL iff no move | $(x-1)^{2}/(2x) = 0 \iff x = 1$ | `div_eq_zero_iff, sq_eq_zero_iff` |
+| 7 | Positive gamma | $1/x^{3} > 0$ for $x > 0$ | `positivity` |
+| 8 | Inverse relationship | $k/(2P) < k/P$ for $P, k > 0$ | `div_lt_div_of_pos_left` |
 
 All proofs compile without `sorry` in Lean 4 with Mathlib. Source: `lean-proofs/SolshortProofs/Basic.lean`.
 
@@ -181,14 +181,14 @@ The protocol is implemented as a Solana program (Anchor/Rust) with 20 on-chain i
 
 ### 5.2 Dynamic Fee Schedule
 
-Fees are a function of vault health ratio *ρ = vault_balance / obligations*:
+Fees are a function of vault health ratio $\rho$ = vault\_balance / obligations:
 
-| Vault Ratio *ρ* | Multiplier | Per-Side Fee | Roundtrip |
+| Vault Ratio | Multiplier | Per-Side Fee | Roundtrip |
 |---|---|---|---|
-| *ρ* > 200% | ×5 | 20 bps | 40 bps |
-| 150% < *ρ* ≤ 200% | ×10 | 40 bps | 80 bps |
-| 100% < *ρ* ≤ 150% | ×15 | 60 bps | 120 bps |
-| *ρ* ≤ 100% | ×20 | 80 bps | 160 bps |
+| ρ > 200% | ×5 | 20 bps | 40 bps |
+| 150% < ρ ≤ 200% | ×10 | 40 bps | 80 bps |
+| 100% < ρ ≤ 150% | ×15 | 60 bps | 120 bps |
+| ρ ≤ 100% | ×20 | 80 bps | 160 bps |
 
 All fees clamped to 100 bps maximum. The dynamic fee acts as an automatic stability mechanism: under vault stress, higher fees slow redemptions and incentivize new mints that replenish the vault.
 
@@ -196,9 +196,9 @@ All fees clamped to 100 bps maximum. The dynamic fee acts as an automatic stabil
 
 The protocol charges holders a continuous funding rate by decaying *k*:
 
-$$k_{t+\Delta} = k_t \cdot \frac{D - r \cdot \Delta}{D}, \quad D = 86{,}400 \times 10{,}000 = 864{,}000{,}000,$$
+$$k_{t+\Delta} = k_t \cdot \frac{D - r \cdot \Delta}{D}$$
 
-where *r* is the rate in bps/day (default 10) and *Δ* is elapsed seconds.
+where $D = 86400 \times 10000 = 864000000$, *r* is the rate in bps/day (default 10), and $\Delta$ is elapsed seconds.
 
 At 10 bps/day: daily decay 0.10%, annual compound 30.59%. This funding rate compensates LPs for bearing counterparty risk and creates a floor yield independent of trading volume.
 
@@ -211,9 +211,9 @@ LP providers deposit USDC and receive LP tokens. Revenue sources:
 1. **Trading fees** — 100% of mint/redeem fees
 2. **Funding rate** — freed USDC from k-decay
 
-Share calculation uses the dead-shares pattern (VIRTUAL_SHARES = 1,000) for protection against first-depositor inflation attacks [6].
+Share calculation uses the dead-shares pattern (VIRTUAL\_SHARES = 1000) for protection against first-depositor inflation attacks [6].
 
-Fee accumulation uses a per-share accumulator at 10¹² precision, ensuring dust-free distribution even with high LP supply.
+Fee accumulation uses a per-share accumulator at $10^{12}$ precision, ensuring dust-free distribution even with high LP supply.
 
 ### 5.5 Oracle Integration
 
@@ -222,13 +222,13 @@ Prices are sourced from **Pyth Network** (pull-based, ~400ms latency). Four vali
 1. **Staleness**: reject prices older than 30 seconds (mainnet)
 2. **Confidence**: reject if confidence interval > 2% of price
 3. **Deviation**: reject if |Δ| > 15% versus cached price
-4. **Floor**: reject if price < $1.00
+4. **Floor**: reject if price < \$1.00
 
 ### 5.6 Circuit Breaker
 
 If vault ratio drops below 95% during a redemption, the pool is automatically paused:
 
-$$\frac{\text{vault\_balance} \times 10{,}000}{\text{obligations}} < 9{,}500 \implies \text{paused} = \text{true}.$$
+$$\frac{\text{vault} \times 10000}{\text{obligations}} < 9500 \implies \text{paused} = \text{true}$$
 
 ### 5.7 Security Properties
 
@@ -240,7 +240,7 @@ $$\frac{\text{vault\_balance} \times 10{,}000}{\text{obligations}} < 9{,}500 \im
 | Authority safety | Two-step transfer (propose → accept) |
 | LP protection | Admin cannot withdraw LP principal or pending fees |
 | Rate limiting | 2-second cooldown between user operations |
-| k floor | MIN_K = 10⁶ prevents decay to zero |
+| k floor | MIN\_K = 10⁶ prevents decay to zero |
 
 ---
 
@@ -250,23 +250,23 @@ $$\frac{\text{vault\_balance} \times 10{,}000}{\text{obligations}} < 9{,}500 \im
 
 With roundtrip fee *f* = 0.40% (healthy vault):
 
-$$\text{P\&L}(x) - f = \frac{(x-1)^2}{2x} - 0.004 > 0 \implies |x - 1| > 0.089.$$
+$$\frac{(x-1)^2}{2x} - 0.004 > 0 \implies |x - 1| > 0.089$$
 
 SOL must move approximately ±9% for the holging strategy to be profitable after fees.
 
 ### 6.2 LP APY Model
 
-$$\text{Total APY} = \underbrace{\frac{V_{\text{daily}} \times f_{\text{rt}} \times 365}{\text{TVL}}}_{\text{Fee APY}} + \underbrace{1 - (1 - r/10{,}000)^{365}}_{\text{Funding APY}},$$
+$$\text{Total APY} = \frac{V_{\text{daily}} \times f_{\text{rt}} \times 365}{\text{TVL}} + 1 - \left(1 - \frac{r}{10000}\right)^{365}$$
 
-where *V_daily* is daily trading volume, *f_rt* is roundtrip fee, and *r* is funding rate bps/day.
+where $V_{\text{daily}}$ is daily trading volume, $f_{\text{rt}}$ is roundtrip fee, and *r* is funding rate bps/day.
 
 At *r = 10*: Funding APY = 30.59% (volume-independent floor).
 
 | Scenario | TVL | Daily Volume | Fee APY | Funding APY | Total APY |
 |---|---|---|---|---|---|
-| Conservative | $500K | $100K | 29.2% | 36.5% | **65.7%** |
-| Moderate | $1M | $250K | 36.5% | 36.5% | **73.0%** |
-| Aggressive | $2M | $500K | 36.5% | 36.5% | **73.0%** |
+| Conservative | \$500K | \$100K | 29.2% | 36.5% | **65.7%** |
+| Moderate | \$1M | \$250K | 36.5% | 36.5% | **73.0%** |
+| Aggressive | \$2M | \$500K | 36.5% | 36.5% | **73.0%** |
 
 ### 6.3 Vault Stress Dynamics
 
@@ -280,12 +280,12 @@ Under vault stress (ratio 150–200%), roundtrip fee increases to 80 bps. This c
 
 ### 6.4 Comparative Analysis
 
-| Protocol | Mechanism | Liquidation | Volatility Decay | Composability | Base Fee |
+| Protocol | Mechanism | Liquidation | Vol. Decay | Composability | Base Fee |
 |---|---|---|---|---|---|
 | **Holging** | Reciprocal token (k/P) | None | None | SPL token | 0.40% rt |
 | Drift Protocol | vAMM perps | Yes | None | Position NFT | 0.10% + funding |
 | Jupiter Perps | JLP pool perps | Yes | None | Not tokenized | 0.06–0.10% |
-| Binance BTCDOWN | Daily-rebalanced −1× | N/A (centralized) | Yes | BEP-20 | Implicit |
+| Binance BTCDOWN | Daily-rebalanced −1× | N/A | Yes | BEP-20 | Implicit |
 | Synthetix | Debt pool synths | Via global debt | None | ERC-20 | 0.30% |
 
 ---
@@ -328,28 +328,28 @@ All 8 core mathematical theorems are formally verified in Lean 4 using Mathlib, 
 
 ## References
 
-[1] A. Madhavan, "Exchange-Traded Funds, Market Structure, and the Flash Crash," *Financial Analysts Journal*, vol. 68, no. 4, pp. 20–35, 2012.
+\[1\] A. Madhavan, "Exchange-Traded Funds, Market Structure, and the Flash Crash," *Financial Analysts Journal*, vol. 68, no. 4, pp. 20–35, 2012.
 
-[2] S. Hayes, "BitMEX Perpetual Contracts: A Primer," BitMEX Research, 2019.
+\[2\] S. Hayes, "BitMEX Perpetual Contracts: A Primer," BitMEX Research, 2019.
 
-[3] Jupiter Exchange, "JLP: Jupiter Liquidity Provider," Documentation, 2024.
+\[3\] Jupiter Exchange, "JLP: Jupiter Liquidity Provider," Documentation, 2024.
 
-[4] K. Warwick, "Synthetix Litepaper," Synthetix Foundation, 2020.
+\[4\] K. Warwick, "Synthetix Litepaper," Synthetix Foundation, 2020.
 
-[5] G. Ethena Labs, "Ethena: Internet Native Money," Whitepaper, 2024.
+\[5\] G. Ethena Labs, "Ethena: Internet Native Money," Whitepaper, 2024.
 
-[6] OpenZeppelin, "ERC-4626 Inflation Attack and Dead Shares Mitigation," Security Advisory, 2023.
+\[6\] OpenZeppelin, "ERC-4626 Inflation Attack and Dead Shares Mitigation," Security Advisory, 2023.
 
-[7] L. de Moura and S. Ullrich, "The Lean 4 Theorem Prover and Programming Language," in *CADE-28*, 2021.
+\[7\] L. de Moura and S. Ullrich, "The Lean 4 Theorem Prover and Programming Language," in *CADE-28*, 2021.
 
-[8] The Mathlib Community, "Mathlib: A Unified Library of Mathematics Formalized in Lean 4," 2023.
+\[8\] The Mathlib Community, "Mathlib: A Unified Library of Mathematics Formalized in Lean 4," 2023.
 
 ---
 
 ## Appendix A: Lean 4 Proof Listing
 
 ```lean
--- Theorem 3: P&L non-negativity (core holging guarantee)
+-- Theorem 3: PnL non-negativity (core holging guarantee)
 theorem pnl_nonneg (x : ℝ) (hx : x > 0) :
     (x - 1) ^ 2 / (2 * x) ≥ 0 := by
   apply div_nonneg
@@ -369,35 +369,37 @@ theorem holging_value_ge_one (x : ℝ) (hx : x > 0) :
   linarith
 ```
 
-Full proofs: `lean-proofs/SolshortProofs/Basic.lean` (8 theorems, all compile without `sorry`).
+Full proofs: [`lean-proofs/SolshortProofs/Basic.lean`](https://github.com/holging/holging/blob/main/lean-proofs/SolshortProofs/Basic.lean) (8 theorems, all compile without `sorry`).
 
 ## Appendix B: Protocol Constants
 
 | Constant | Value | Description |
 |---|---|---|
-| PRICE_PRECISION | 10⁹ | Fixed-point scaling |
-| DEFAULT_FEE_BPS | 4 | Base fee (×5–×20 dynamic) |
-| MIN_VAULT_RATIO_BPS | 9,500 | Circuit breaker threshold |
-| MIN_VAULT_POST_WITHDRAWAL_BPS | 11,000 | Admin withdrawal floor |
-| MAX_FUNDING_RATE_BPS | 100 | 1%/day governance cap |
-| MAX_STALENESS_SECS | 30 (mainnet) | Oracle freshness |
-| MAX_PRICE_DEVIATION_BPS | 1,500 | 15% deviation cap |
-| SHARE_PRECISION | 10¹² | LP fee accumulator precision |
-| VIRTUAL_SHARES | 1,000 | Dead shares (ERC-4626 defense) |
-| MIN_LP_DEPOSIT | 10⁸ | $100 USDC minimum |
-| MIN_K | 10⁶ | k floor (prevents zero-decay) |
+| PRICE\_PRECISION | 10⁹ | Fixed-point scaling |
+| DEFAULT\_FEE\_BPS | 4 | Base fee (×5–×20 dynamic) |
+| MIN\_VAULT\_RATIO\_BPS | 9500 | Circuit breaker threshold |
+| MIN\_VAULT\_POST\_WITHDRAWAL\_BPS | 11000 | Admin withdrawal floor |
+| MAX\_FUNDING\_RATE\_BPS | 100 | 1%/day governance cap |
+| MAX\_STALENESS\_SECS | 30 (mainnet) | Oracle freshness |
+| MAX\_PRICE\_DEVIATION\_BPS | 1500 | 15% deviation cap |
+| SHARE\_PRECISION | 10¹² | LP fee accumulator precision |
+| VIRTUAL\_SHARES | 1000 | Dead shares (ERC-4626 defense) |
+| MIN\_LP\_DEPOSIT | 10⁸ | \$100 USDC minimum |
+| MIN\_K | 10⁶ | k floor (prevents zero-decay) |
 
 ## Appendix C: Smart Contract Summary
 
-- **Program ID:** `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX`
-- **Framework:** Anchor (Rust), Solana
-- **Instructions:** 20
-- **Account types:** PoolState, FundingConfig, LpPosition
-- **Error codes:** 21
-- **Event types:** 14
-- **Pools:** SOL, TSLA, SPY, AAPL (parameterized by pool_id)
-- **Oracle:** Pyth Network (pull-based, 4-layer validation)
-- **Formal proofs:** 8 theorems in Lean 4 / Mathlib
-- **Frontend:** https://holging.com
-- **API:** https://api.holging.com
-- **Source:** https://github.com/holging/holging
+| Item | Value |
+|---|---|
+| **Program ID** | `CLmSD9eax2JmhJQdiU3RYt82fgjb78nCdZLaeDZQvTVX` |
+| **Framework** | Anchor (Rust), Solana |
+| **Instructions** | 20 |
+| **Account types** | PoolState, FundingConfig, LpPosition |
+| **Error codes** | 21 |
+| **Event types** | 14 |
+| **Pools** | SOL, TSLA, SPY, AAPL (parameterized by pool\_id) |
+| **Oracle** | Pyth Network (pull-based, 4-layer validation) |
+| **Formal proofs** | 8 theorems in Lean 4 / Mathlib |
+| **Frontend** | [holging.com](https://holging.com) |
+| **API** | [api.holging.com](https://api.holging.com) |
+| **Source** | [github.com/holging/holging](https://github.com/holging/holging) |
