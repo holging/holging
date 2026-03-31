@@ -38,7 +38,7 @@ Holging is a tokenized inverse-exposure protocol on Solana. Users deposit USDC t
 The shortSOL price is an inverse (reciprocal) function of SOL price:
 
 $$
-\text{shortSOL\_price}(t) = \frac{k \times \text{PRICE\_PRECISION}}{P_{\text{SOL}}(t)}
+\text{shortSOL price}(t) = \frac{k \times \text{PRICE PRECISION}}{P_{\text{SOL}}(t)}
 $$
 
 Where:
@@ -48,7 +48,7 @@ Where:
 ### 2.2 Constant k (initialization)
 
 $$
-k = \frac{P_0^2}{\text{PRICE\_PRECISION}}
+k = \frac{P_0^2}{\text{PRICE PRECISION}}
 $$
 
 Where $P_0$ is SOL price at pool initialization.
@@ -56,7 +56,7 @@ Where $P_0$ is SOL price at pool initialization.
 **Property:** At initialization, shortSOL starts at the same price as SOL:
 
 $$
-\text{shortSOL}(0) = \frac{k \times \text{PRICE\_PRECISION}}{P_0} = \frac{P_0^2 / \text{PRICE\_PRECISION} \times \text{PRICE\_PRECISION}}{P_0} = P_0
+\text{shortSOL}(0) = \frac{k \times \text{PRICE PRECISION}}{P_0} = \frac{P_0^2 / \text{PRICE PRECISION} \times \text{PRICE PRECISION}}{P_0} = P_0
 $$
 
 ### 2.3 k is Return-Neutral
@@ -76,23 +76,23 @@ Two pools with different k produce identical percentage returns.
 ### 3.1 Fee Deduction
 
 $$
-\text{fee} = \frac{\text{usdc\_amount} \times \text{fee\_bps}}{10{,}000}
+\text{fee} = \frac{\text{usdc amount} \times \text{fee bps}}{10000}
 $$
 
 $$
-\text{effective\_usdc} = \text{usdc\_amount} - \text{fee}
+\text{effective usdc} = \text{usdc amount} - \text{fee}
 $$
 
 ### 3.2 Tokens Minted
 
 $$
-\text{tokens} = \frac{\text{effective\_usdc} \times \text{DECIMAL\_SCALING} \times \text{PRICE\_PRECISION}}{\text{shortSOL\_price}}
+\text{tokens} = \frac{\text{effective usdc} \times \text{DECIMAL SCALING} \times \text{PRICE PRECISION}}{\text{shortSOL price}}
 $$
 
 Expanded:
 
 $$
-\text{tokens} = \frac{\text{effective\_usdc} \times 10^3 \times 10^9}{\text{shortSOL\_price}}
+\text{tokens} = \frac{\text{effective usdc} \times 10^3 \times 10^9}{\text{shortSOL price}}
 $$
 
 ### 3.3 State Updates
@@ -122,17 +122,17 @@ tokens = 169,932,000 × 1,000 × 10⁹ / (170×10⁹) = 999,600,000 (≈ 0.9996 
 ### 4.1 Gross USDC Out
 
 $$
-\text{gross\_usdc} = \frac{\text{shortsol\_amount} \times \text{shortSOL\_price}}{\text{PRICE\_PRECISION} \times \text{DECIMAL\_SCALING}}
+\text{gross usdc} = \frac{\text{shortsol amount} \times \text{shortSOL price}}{\text{PRICE PRECISION} \times \text{DECIMAL SCALING}}
 $$
 
 ### 4.2 Fee (Bid Side)
 
 $$
-\text{fee} = \frac{\text{gross\_usdc} \times \text{fee\_bps}}{10{,}000}
+\text{fee} = \frac{\text{gross usdc} \times \text{fee bps}}{10000}
 $$
 
 $$
-\text{net\_usdc} = \text{gross\_usdc} - \text{fee}
+\text{net usdc} = \text{gross usdc} - \text{fee}
 $$
 
 ### 4.3 State Updates
@@ -147,7 +147,7 @@ fees_collected  += fee
 ### 4.4 Effective Spread
 
 $$
-\text{Spread} = \text{Ask} - \text{Bid} = \text{shortSOL\_price} \times \frac{2 \times \text{fee\_bps}}{10{,}000} = \text{shortSOL\_price} \times 0.08\%
+\text{Spread} = \text{Ask} - \text{Bid} = \text{shortSOL price} \times \frac{2 \times \text{fee bps}}{10000} = \text{shortSOL price} \times 0.08\%
 $$
 
 ---
@@ -159,22 +159,22 @@ $$
 Pyth returns `(price, exponent)`. Example: price=17250, expo=−2 means $172.50.
 
 $$
-\text{adjusted\_price} = \begin{cases}
-\text{raw\_price} \times 10^{\text{expo}} \times \text{PRICE\_PRECISION} & \text{if expo} \geq 0 \\
-\frac{\text{raw\_price} \times \text{PRICE\_PRECISION}}{10^{|\text{expo}|}} & \text{if expo} < 0
+\text{adjusted price} = \begin{cases}
+\text{raw price} \times 10^{\text{expo}} \times \text{PRICE PRECISION} & \text{if expo} \geq 0 \\\\
+\frac{\text{raw price} \times \text{PRICE PRECISION}}{10^{|\text{expo}|}} & \text{if expo} < 0
 \end{cases}
 $$
 
 ### 5.2 Confidence Check
 
 $$
-\text{conf\_pct} = \frac{\text{adjusted\_conf} \times 100}{\text{adjusted\_price}} < 2\%
+\text{conf pct} = \frac{\text{adjusted conf} \times 100}{\text{adjusted price}} < 2\%
 $$
 
 ### 5.3 Deviation Check (vs cached price)
 
 $$
-\text{deviation\_bps} = \frac{|\text{adjusted\_price} - \text{last\_cached\_price}| \times 10{,}000}{\text{last\_cached\_price}} \leq 1{,}500
+\text{deviation bps} = \frac{|\text{adjusted price} - \text{last cached price}| \times 10000}{\text{last cached price}} \leq 1500
 $$
 
 ### 5.4 Safety Guards Summary
@@ -195,19 +195,19 @@ $$
 After a redemption, the remaining obligations are:
 
 $$
-\text{obligations} = \frac{\text{remaining\_circulating} \times \text{shortSOL\_price}}{\text{PRICE\_PRECISION} \times \text{DECIMAL\_SCALING}}
+\text{obligations} = \frac{\text{remaining circulating} \times \text{shortSOL price}}{\text{PRICE PRECISION} \times \text{DECIMAL SCALING}}
 $$
 
 ### 6.2 Vault Ratio
 
 $$
-\text{vault\_ratio\_bps} = \frac{\text{remaining\_vault} \times 10{,}000}{\text{obligations}}
+\text{vault ratio bps} = \frac{\text{remaining vault} \times 10000}{\text{obligations}}
 $$
 
 ### 6.3 Trigger
 
 $$
-\text{vault\_ratio\_bps} < 9{,}500 \implies \text{pool.paused} = \texttt{true}
+\text{vault ratio bps} < 9500 \Rightarrow \text{pool.paused} = \text{true}
 $$
 
 Transaction is rejected with `CircuitBreaker` error.
@@ -243,7 +243,7 @@ $$
 By the Arithmetic Mean–Geometric Mean inequality:
 
 $$
-\frac{x + 1/x}{2} \geq \sqrt{x \cdot \frac{1}{x}} = 1 \quad \forall\, x > 0
+\frac{x + 1/x}{2} \geq \sqrt{x \cdot \frac{1}{x}} = 1 \quad \forall \ x > 0
 $$
 
 **Therefore:** $V(x) \geq 1$ always. The portfolio never loses value (pre-fees).
@@ -251,14 +251,15 @@ $$
 ### 7.3 P&L Formula
 
 $$
-\text{P\&L}(x) = V(x) - 1 = \frac{x + 1/x}{2} - 1 = \frac{(x - 1)^2}{2x}
+\text{PnL}(x) = V(x) - 1 = \frac{x + 1/x}{2} - 1 = \frac{(x - 1)^2}{2x}
 $$
 
-Minimum at $x = 1$ (no price change), $\text{P\&L} = 0$.
+Minimum at $x = 1$ (no price change), $\text{PnL} = 0$.
 
 ### 7.4 Derivatives (Greeks)
 
 First derivative (delta):
+
 $$
 \frac{dV}{dP} = \frac{1}{2P_0} - \frac{P_0}{2P^2}
 $$
@@ -266,8 +267,9 @@ $$
 At $P = P_0$: delta = 0 (delta-neutral).
 
 Second derivative (gamma):
+
 $$
-\frac{d^2V}{dP^2} = \frac{P_0}{P^3} > 0 \quad \forall\, P > 0
+\frac{d^2V}{dP^2} = \frac{P_0}{P^3} > 0 \quad \forall \ P > 0
 $$
 
 **Positive gamma everywhere** — portfolio benefits from volatility in either direction.
@@ -291,7 +293,7 @@ $$
 ### 7.6 Real P&L (with fees)
 
 $$
-\text{Real P\&L} = \frac{(x-1)^2}{2x} - 2 \times \text{fee\_roundtrip} - \text{gas}
+\text{Real PnL} = \frac{(x-1)^2}{2x} - 2 \times \text{fee roundtrip} - \text{gas}
 $$
 
 With base fee_bps = 4 and ×5 multiplier at healthy vault: roundtrip cost = 0.40%. Break-even requires:
@@ -317,7 +319,7 @@ Approximately: SOL must move ±9% for profit after fees.
 ### 8.2 Scaling Factor
 
 $$
-\text{DECIMAL\_SCALING} = 10^{(\text{SHORTSOL\_DEC} - \text{USDC\_DEC})} = 10^{(9-6)} = 1{,}000
+\text{DECIMAL SCALING} = 10^{(\text{SHORTSOL DEC} - \text{USDC DEC})} = 10^{(9-6)} = 1000
 $$
 
 Used in both mint (multiply) and redeem (divide) to bridge the decimal gap.
@@ -347,7 +349,7 @@ PoolState {
 }
 
 FundingConfig {
-    rate_bps:        u16   // k-decay rate in bps/day (0 = disabled)
+    rate_bps:        u16   // k-decay base rate in bps/day (0 = disabled)
     last_funding_at: i64   // Unix timestamp of last accrual
     bump:            u8    // PDA bump
 }
@@ -421,7 +423,8 @@ TransferAuthorityEvent  { old_authority, new_authority }
 
 ### Funding Events
 ```
-FundingAccruedEvent  { k_before, k_after, elapsed_secs, rate_bps, timestamp }
+FundingAccruedEvent      { k_before, k_after, elapsed_secs, rate_bps, effective_rate_bps, timestamp }
+FundingDistributedEvent  { freed_usdc, new_fee_per_share, effective_rate_bps, timestamp }
 ```
 
 ---
@@ -432,44 +435,68 @@ FundingAccruedEvent  { k_before, k_after, elapsed_secs, rate_bps, timestamp }
 
 The protocol charges a continuous funding rate by decaying `k` over time. This compensates the vault for the asymmetric payout structure (shortSOL holders profit from SOL drops, but vault absorbs the loss).
 
+### 13.2 Adaptive Rate
+
+The funding rate is **adaptive** — it scales with vault health using 4 tiers. The admin-configurable `rate_bps` (base rate) is multiplied by a vault-health-dependent factor:
+
+Source: `fees.rs` → `calc_adaptive_rate()`
+
+| Vault Health | Multiplier | Effective Rate (base=3) | Annual Compound |
+|---|---|---|---|
+| > 200% | ×0.5 | 1.5 bps/day | ~5.3% |
+| 150–200% | ×1 | 3 bps/day | ~10.3% |
+| 100–150% | ×2 | 6 bps/day | ~19.7% |
+| < 100% | ×3 | 9 bps/day | ~28.3% |
+
+Result clamped to `MAX_FUNDING_RATE_BPS = 100`.
+
+### 13.3 K-Decay Formula
+
 $$
-k_{\text{new}} = k_{\text{old}} \times \frac{\text{denom} - \text{rate\_bps} \times \text{elapsed\_to\_apply}}{\text{denom}}
+k_{\text{new}} = k_{\text{old}} \times \frac{\text{denom} - \text{effective rate bps} \times \text{elapsed secs}}{\text{denom}}
 $$
 
 $$
-\text{denom} = \text{SECS\_PER\_DAY} \times \text{BPS\_DENOM} = 86{,}400 \times 10{,}000 = 864{,}000{,}000
+\text{denom} = \text{SECS PER DAY} \times \text{BPS DENOM} = 86400 \times 10000 = 864000000
 $$
 
-### 13.2 Rate Examples
+### 13.4 Rate Examples
 
 | rate_bps/day | Daily decay | Compound/year |
 |---|---|---|
-| 1 | 0.01% | 3.5% |
+| 1 | 0.01% | 3.6% |
+| 3 | 0.03% | 10.3% |
+| 6 | 0.06% | 19.7% |
+| 9 | 0.09% | 28.3% |
 | 10 | 0.10% | 30.6% |
 | 50 | 0.50% | 83.9% |
 | 100 | 1.00% | 97.4% |
 
-### 13.3 Keeper-Independence
+### 13.5 Keeper-Independence
 
-Funding is applied **inline** on every `mint` and `redeem` call (if `FundingConfig` is passed as an optional account). This ensures users always trade at the current k, regardless of keeper activity.
+Funding is applied **inline** on every `mint` and `redeem` call (if `FundingConfig` is passed as an optional account). This ensures users always trade at the current k, regardless of keeper activity. The inline path uses `pool.last_oracle_price` (cached) for vault health computation.
 
-### 13.4 k→0 Protection
+### 13.6 k→0 Protection
 
 A hard cap of **30 days** (`MAX_FUNDING_ELAPSED_SECS`) per `accrue_funding` call prevents k from collapsing to zero during keeper downtime. The timestamp advances by `elapsed_to_apply`, not by `now` — uncapped time carries over to the next call.
 
 $$
-\text{elapsed\_to\_apply} = \min(\text{elapsed}, \text{MAX\_FUNDING\_ELAPSED\_SECS})
+\text{elapsed to apply} = \min(\text{elapsed}, \text{MAX FUNDING ELAPSED SECS})
 $$
 
-### 13.5 Effect on shortSOL Price
+### 13.7 Effect on shortSOL Price
 
-Since `shortSOL_price = k × 10⁹ / SOL_price`, a smaller k means a lower shortSOL price for the same SOL price. Holders who do not redeem gradually lose value through the funding rate — analogous to a perpetual funding rate in perp markets.
+Since shortSOL price = k × 10⁹ / SOL price, a smaller k means a lower shortSOL price for the same SOL price. Holders who do not redeem gradually lose value through the funding rate — analogous to a perpetual funding rate in perp markets.
+
+### 13.8 Freed USDC Distribution
+
+When k decreases → obligations decrease → freed USDC → LP fee accumulator (`fee_per_share_accumulated`). This is the primary yield source for LPs alongside trading fees.
 
 ---
 
 ## 14. Risk Analysis
 
-### 13.1 Vault Insolvency
+### 14.1 Vault Insolvency
 
 If SOL drops significantly, shortSOL obligations exceed vault balance. Circuit breaker at 95% mitigates but doesn't eliminate:
 
@@ -479,26 +506,26 @@ $$
 
 Single mint → 50% collateralization. Multiple mints at varying prices improve ratio.
 
-### 13.2 Rounding
+### 14.2 Rounding
 
 All integer divisions round down (floor). In both mint and redeem, rounding favors the protocol. Two sequential divisions in redeem (`/ PRICE_PRECISION / scaling`) lose more precision than a single combined division.
 
-### 13.3 Oracle
+### 14.3 Oracle
 
 - 30s staleness window allows front-running
 - Pull-based Pyth model: anyone can submit price updates
 - 15% deviation check can be slowly shifted across transactions
 - Single oracle, no fallback
 
-### 13.4 Fees vs Holging Profit
+### 14.4 Fees vs Holging Profit
 
 Roundtrip fee = 0.40%. For small SOL moves:
 
 $$
-\text{P\&L}(1 + \epsilon) \approx \frac{\epsilon^2}{2} \quad \text{(Taylor expansion)}
+\text{PnL}(1 + \epsilon) \approx \frac{\epsilon^2}{2}
 $$
 
-Break-even: $\epsilon^2 / 2 > 0.0008 \implies |\epsilon| > 4\%$
+Break-even: $\epsilon^2 / 2 > 0.0008 \Rightarrow |\epsilon| > 4\%$
 
 ---
 
@@ -509,13 +536,13 @@ Break-even: $\epsilon^2 / 2 > 0.0008 \implies |\epsilon| > 4\%$
 | shortSOL price | $k \times 10^9 / P_{\text{SOL}}$ |
 | k (init) | $P_0^2 / 10^9$ |
 | k (decay) | $k_{\text{old}} \times (\text{denom} - \text{rate} \times \text{elapsed}) / \text{denom}$ |
-| Funding denom | $86{,}400 \times 10{,}000 = 864{,}000{,}000$ |
-| Mint fee | $\text{amount} \times \text{fee\_bps} / 10{,}000$ |
+| Funding denom | $86400 \times 10000 = 864000000$ |
+| Mint fee | $\text{amount} \times \text{fee bps} / 10000$ |
 | Tokens out | $\text{effective} \times 10^3 \times 10^9 / \text{ssPrice}$ |
 | USDC out | $\text{tokens} \times \text{ssPrice} / 10^9 / 10^3$ |
 | Holging V(x) | $(x + 1/x) / 2$ |
 | Holging P&L | $(x - 1)^2 / (2x)$ |
-| Vault ratio | $\text{vault} \times 10{,}000 / \text{obligations}$ |
-| Withdrawal floor | $\text{obligations} \times 11{,}000 / 10{,}000$ |
+| Vault ratio | $\text{vault} \times 10000 / \text{obligations}$ |
+| Withdrawal floor | $\text{obligations} \times 11000 / 10000$ |
 | Confidence | $\text{conf} \times 100 / \text{price} < 2\%$ |
-| Deviation | $|\Delta| \times 10{,}000 / \text{cached} \leq 1{,}500$ |
+| Deviation | $\|\Delta\| \times 10000 / \text{cached} \leq 1500$ |
