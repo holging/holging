@@ -83,7 +83,7 @@ Call claim_lp_fees → receive accumulated fees
 
 ### 3.2 Projected Scenarios
 
-With a healthy vault (>200%, roundtrip fee = 0.80%):
+With a healthy vault (>200%, roundtrip fee = 0.40%):
 
 | Scenario | TVL | Daily Volume | Fee APY | Funding APY | **Total APY** |
 |----------|-----|-------------|---------|-------------|---------------|
@@ -95,9 +95,9 @@ With a stressed vault (150–200%, roundtrip fee = 0.80%):
 
 | Scenario | TVL | Daily Volume | Fee APY | Funding APY | **Total APY** |
 |----------|-----|-------------|---------|-------------|---------------|
-| Conservative | $100K | $10K | 14.60% | 36.50% | **51.10%** |
-| Moderate | $500K | $100K | 29.20% | 36.50% | **65.70%** |
-| Aggressive | $2M | $500K | 36.50% | 36.50% | **73.00%** |
+| Conservative | $500K | $100K | 58.40% | 36.50% | **94.90%** |
+| Moderate | $1M | $250K | 73.00% | 36.50% | **109.50%** |
+| Aggressive | $2M | $500K | 73.00% | 36.50% | **109.50%** |
 
 ### 3.3 Key Insight
 
