@@ -4,7 +4,7 @@ use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use crate::constants::*;
 use crate::errors::SolshortError;
 use crate::events::{FundingAccruedEvent, FundingDistributedEvent};
-use crate::fees::{accumulate_fee, calc_obligations};
+use crate::fees::{accumulate_fee, calc_adaptive_rate, calc_obligations};
 use crate::oracle::get_validated_price;
 use crate::state::{FundingConfig, PoolState};
 
@@ -16,15 +16,23 @@ pub fn apply_funding_inline(
     pool: &mut PoolState,
     cfg: &mut FundingConfig,
     now: i64,
-) -> Result<()> {
+) -> Result<u16> {
     let elapsed = now.saturating_sub(cfg.last_funding_at);
     if elapsed <= 0 || cfg.rate_bps == 0 {
-        return Ok(());
+        return Ok(0);
     }
+
+    let effective_rate = calc_adaptive_rate(
+        cfg.rate_bps,
+        pool.vault_balance,
+        pool.circulating,
+        pool.k,
+        pool.last_oracle_price,
+    )?;
 
     let elapsed_to_apply = (elapsed as u64).min(MAX_FUNDING_ELAPSED_SECS);
     let denom: u128 = SECS_PER_DAY as u128 * BPS_DENOMINATOR as u128;
-    let reduction: u128 = cfg.rate_bps as u128 * elapsed_to_apply as u128;
+    let reduction: u128 = effective_rate as u128 * elapsed_to_apply as u128;
     let factor_num = denom
         .checked_sub(reduction)
         .ok_or(error!(SolshortError::MathOverflow))?;
@@ -44,7 +52,7 @@ pub fn apply_funding_inline(
         .last_funding_at
         .saturating_add(elapsed_to_apply as i64);
 
-    Ok(())
+    Ok(effective_rate)
 }
 
 // ─── Initialize Funding ───────────────────────────────────────────────────────
@@ -130,7 +138,7 @@ pub fn accrue_funding_handler(ctx: Context<AccrueFunding>, _pool_id: String) -> 
     let rate_bps = ctx.accounts.funding_config.rate_bps;
 
     // Применяем фандинг (уменьшает k, продвигает last_funding_at)
-    apply_funding_inline(
+    let effective_rate = apply_funding_inline(
         &mut ctx.accounts.pool_state,
         &mut ctx.accounts.funding_config,
         now,
@@ -158,8 +166,9 @@ pub fn accrue_funding_handler(ctx: Context<AccrueFunding>, _pool_id: String) -> 
     let freed_usdc = obligations_before.saturating_sub(obligations_after);
 
     let fee_per_share_before = ctx.accounts.pool_state.fee_per_share_accumulated;
+    let mut protocol_fee = 0u64;
     if freed_usdc > 0 {
-        accumulate_fee(&mut ctx.accounts.pool_state, freed_usdc)?;
+        protocol_fee = accumulate_fee(&mut ctx.accounts.pool_state, freed_usdc)?;
     }
     let fee_per_share_delta = ctx.accounts.pool_state.fee_per_share_accumulated
         .saturating_sub(fee_per_share_before);
@@ -173,16 +182,19 @@ pub fn accrue_funding_handler(ctx: Context<AccrueFunding>, _pool_id: String) -> 
         k_after: k_new,
         elapsed_secs: elapsed_applied,
         rate_bps,
+        effective_rate_bps: effective_rate,
         timestamp: now,
     });
 
     if freed_usdc > 0 {
         emit!(FundingDistributedEvent {
             freed_usdc,
+            protocol_fee,
             fee_per_share_delta,
             k_before: k_old,
             k_after: k_new,
             sol_price,
+            effective_rate_bps: effective_rate,
             timestamp: now,
         });
     }

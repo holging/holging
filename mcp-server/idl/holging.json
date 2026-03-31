@@ -2458,6 +2458,10 @@
             "type": "u64"
           },
           {
+            "name": "protocol_fee",
+            "type": "u64"
+          },
+          {
             "name": "fee_per_share_delta",
             "type": "u128"
           },
@@ -2637,6 +2641,10 @@
           },
           {
             "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "protocol_fee",
             "type": "u64"
           },
           {
@@ -2833,6 +2841,13 @@
               "Суммарные pending fees всех LP (для защиты admin withdraw_fees)"
             ],
             "type": "u64"
+          },
+          {
+            "name": "protocol_fees_accumulated",
+            "docs": [
+              "Накопленные protocol fees (20% от trading + funding), доступные admin для вывода"
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -2988,6 +3003,10 @@
           },
           {
             "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "protocol_fee",
             "type": "u64"
           },
           {

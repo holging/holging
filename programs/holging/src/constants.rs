@@ -106,3 +106,8 @@ pub const VIRTUAL_ASSETS: u64 = 1_000;
 
 /// Minimum LP deposit in USDC base units ($100 = 100 × 10^6)
 pub const MIN_LP_DEPOSIT: u64 = 100_000_000;
+
+/// Protocol fee share in basis points (2000 = 20%).
+/// Applied to trading fees and funding revenue before LP distribution.
+/// 80% → LP providers, 20% → protocol treasury.
+pub const PROTOCOL_FEE_BPS: u64 = 2_000;

@@ -91,7 +91,7 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64, mi
 
     // Применяем фандинг инлайн если FundingConfig передан
     if let Some(funding) = &mut ctx.accounts.funding_config {
-        apply_funding_inline(&mut ctx.accounts.pool_state, funding, clock.unix_timestamp)?;
+        let _ = apply_funding_inline(&mut ctx.accounts.pool_state, funding, clock.unix_timestamp)?;
     } else {
         // Если FundingConfig не передан, проверяем что PDA НЕ существует on-chain.
         // Если PDA существует — пользователь обязан передать его (MEDIUM-02 fix).
@@ -212,8 +212,8 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64, mi
     pool.last_oracle_price = sol_price;
     pool.last_oracle_timestamp = oracle.timestamp;
 
-    // 8a. Распределяем fee LP провайдерам через accumulator
-    accumulate_fee(pool, fee_amount)?;
+    // 8a. Распределяем fee: 80% LP провайдерам, 20% protocol treasury
+    let protocol_fee = accumulate_fee(pool, fee_amount)?;
 
     // 9. Emit event
     emit!(MintEvent {
@@ -223,6 +223,7 @@ pub fn handler(ctx: Context<MintShortSol>, pool_id: String, usdc_amount: u64, mi
         sol_price,
         shortsol_price,
         fee: fee_amount,
+        protocol_fee,
         timestamp: oracle.timestamp,
     });
 

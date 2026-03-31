@@ -77,6 +77,54 @@ pub fn calc_dynamic_fee(
     Ok(fee.min(100) as u16)
 }
 
+/// Calculate adaptive funding rate based on vault health ratio.
+///
+/// ratio > 200%   → rate = base / 2    (×0.5, vault healthy, low funding)
+/// ratio 150-200% → rate = base        (×1, normal)
+/// ratio 100-150% → rate = base * 2    (×2, elevated stress)
+/// ratio < 100%   → rate = base * 3    (×3, critical, accelerated funding)
+///
+/// Integer truncation on ×0.5 tier is acceptable (e.g. 3/2=1). See D001.
+pub fn calc_adaptive_rate(
+    base_rate_bps: u16,
+    vault_balance: u64,
+    circulating: u64,
+    k: u128,
+    sol_price: u64,
+) -> Result<u16> {
+    if circulating == 0 || sol_price == 0 {
+        return Ok(base_rate_bps);
+    }
+
+    let obligations = calc_obligations(circulating, k, sol_price)?;
+    if obligations == 0 {
+        return Ok(base_rate_bps);
+    }
+
+    let ratio_bps = (vault_balance as u128)
+        .checked_mul(BPS_DENOMINATOR as u128)
+        .ok_or(error!(SolshortError::MathOverflow))?
+        .checked_div(obligations as u128)
+        .ok_or(error!(SolshortError::MathOverflow))? as u64;
+
+    let effective = if ratio_bps > 20_000 {
+        // > 200% — vault very healthy
+        (base_rate_bps as u64) / 2
+    } else if ratio_bps > 15_000 {
+        // 150-200% — normal
+        base_rate_bps as u64
+    } else if ratio_bps > 10_000 {
+        // 100-150% — elevated
+        (base_rate_bps as u64) * 2
+    } else {
+        // < 100% — critical
+        (base_rate_bps as u64) * 3
+    };
+
+    // Clamp to MAX_FUNDING_RATE_BPS
+    Ok(effective.min(MAX_FUNDING_RATE_BPS as u64) as u16)
+}
+
 /// Начисляет накопленные fees в pending_fees позиции LP.
 /// Вызывается перед каждым deposit/withdraw/claim.
 pub fn settle_lp_fees(pool: &PoolState, position: &mut LpPosition) -> Result<u64> {
@@ -131,23 +179,52 @@ pub fn calc_lp_shares(
 }
 
 /// Обновляет глобальный fee accumulator после начисления fee_amount.
-/// Если LP нет — fee остаётся в vault как protocol reserve.
-pub fn accumulate_fee(pool: &mut PoolState, fee_amount: u64) -> Result<()> {
-    if pool.lp_total_supply == 0 || fee_amount == 0 {
-        return Ok(());
+/// Сплитит fee: (100% − PROTOCOL_FEE_BPS) → LP, PROTOCOL_FEE_BPS → protocol treasury.
+/// Если LP нет — всё идёт в protocol treasury.
+pub fn accumulate_fee(pool: &mut PoolState, fee_amount: u64) -> Result<u64> {
+    if fee_amount == 0 {
+        return Ok(0);
     }
-    let delta = (fee_amount as u128)
-        .checked_mul(SHARE_PRECISION)
+
+    // Calculate protocol share (20%)
+    let protocol_share = (fee_amount as u128)
+        .checked_mul(PROTOCOL_FEE_BPS as u128)
         .ok_or(error!(SolshortError::MathOverflow))?
-        .checked_div(pool.lp_total_supply as u128)
+        .checked_div(BPS_DENOMINATOR as u128)
+        .ok_or(error!(SolshortError::MathOverflow))? as u64;
+
+    let lp_share = fee_amount
+        .checked_sub(protocol_share)
         .ok_or(error!(SolshortError::MathOverflow))?;
-    pool.fee_per_share_accumulated = pool
-        .fee_per_share_accumulated
-        .checked_add(delta)
+
+    // Protocol fees always accumulate
+    pool.protocol_fees_accumulated = pool
+        .protocol_fees_accumulated
+        .checked_add(protocol_share)
         .ok_or(error!(SolshortError::MathOverflow))?;
-    pool.total_lp_fees_pending = pool
-        .total_lp_fees_pending
-        .checked_add(fee_amount)
-        .ok_or(error!(SolshortError::MathOverflow))?;
-    Ok(())
+
+    // LP share distributed via accumulator (only if LPs exist)
+    if pool.lp_total_supply > 0 && lp_share > 0 {
+        let delta = (lp_share as u128)
+            .checked_mul(SHARE_PRECISION)
+            .ok_or(error!(SolshortError::MathOverflow))?
+            .checked_div(pool.lp_total_supply as u128)
+            .ok_or(error!(SolshortError::MathOverflow))?;
+        pool.fee_per_share_accumulated = pool
+            .fee_per_share_accumulated
+            .checked_add(delta)
+            .ok_or(error!(SolshortError::MathOverflow))?;
+        pool.total_lp_fees_pending = pool
+            .total_lp_fees_pending
+            .checked_add(lp_share)
+            .ok_or(error!(SolshortError::MathOverflow))?;
+    } else {
+        // No LPs — LP share also goes to protocol
+        pool.protocol_fees_accumulated = pool
+            .protocol_fees_accumulated
+            .checked_add(lp_share)
+            .ok_or(error!(SolshortError::MathOverflow))?;
+    }
+
+    Ok(protocol_share)
 }

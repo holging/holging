@@ -49,6 +49,12 @@ pub fn handler(ctx: Context<WithdrawFees>, _pool_id: String, amount: u64) -> Res
 
     let pool = &mut ctx.accounts.pool_state;
 
+    // Admin can only withdraw from protocol_fees_accumulated
+    require!(
+        amount <= pool.protocol_fees_accumulated,
+        SolshortError::InsufficientLiquidity
+    );
+
     // Use fresh oracle price for obligation calculation
     let feed_id = pool.pyth_feed_id;
     let oracle = get_validated_price(&ctx.accounts.price_update, pool.last_oracle_price, &feed_id)?;
@@ -56,13 +62,12 @@ pub fn handler(ctx: Context<WithdrawFees>, _pool_id: String, amount: u64) -> Res
 
     let obligations = calc_obligations(pool.circulating, pool.k, sol_price)?;
 
-    // Withdrawable = vault_balance - min_vault (110% coverage), буфер 15% до circuit breaker
+    // Verify vault remains healthy after withdrawal (110% obligations + LP protected)
     let min_vault = (obligations as u128)
         .checked_mul(MIN_VAULT_POST_WITHDRAWAL_BPS as u128)
         .ok_or(error!(SolshortError::MathOverflow))?
         .checked_div(BPS_DENOMINATOR as u128)
         .ok_or(error!(SolshortError::MathOverflow))? as u64;
-    // Защищаем LP principal и pending fees от вывода администратором
     let lp_reserved = pool
         .lp_principal
         .checked_add(pool.total_lp_fees_pending)
@@ -70,12 +75,11 @@ pub fn handler(ctx: Context<WithdrawFees>, _pool_id: String, amount: u64) -> Res
     let protected = min_vault
         .checked_add(lp_reserved)
         .ok_or(error!(SolshortError::MathOverflow))?;
-    let withdrawable = pool
+    let vault_after = pool
         .vault_balance
-        .checked_sub(protected)
+        .checked_sub(amount)
         .ok_or(error!(SolshortError::InsufficientLiquidity))?;
-
-    require!(amount <= withdrawable, SolshortError::InsufficientLiquidity);
+    require!(vault_after >= protected, SolshortError::InsufficientLiquidity);
 
     // Transfer from vault to authority (signed by pool PDA)
     let pool_id_bytes = _pool_id.as_bytes();
@@ -106,6 +110,10 @@ pub fn handler(ctx: Context<WithdrawFees>, _pool_id: String, amount: u64) -> Res
     );
 
     pool.vault_balance = new_vault;
+    pool.protocol_fees_accumulated = pool
+        .protocol_fees_accumulated
+        .checked_sub(amount)
+        .ok_or(error!(SolshortError::MathOverflow))?;
     pool.last_oracle_price = sol_price;
     pool.last_oracle_timestamp = oracle.timestamp;
 

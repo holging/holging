@@ -8,6 +8,7 @@ pub struct MintEvent {
     pub sol_price: u64,
     pub shortsol_price: u64,
     pub fee: u64,
+    pub protocol_fee: u64,
     pub timestamp: i64,
 }
 
@@ -19,6 +20,7 @@ pub struct RedeemEvent {
     pub sol_price: u64,
     pub shortsol_price: u64,
     pub fee: u64,
+    pub protocol_fee: u64,
     pub timestamp: i64,
 }
 
@@ -86,6 +88,7 @@ pub struct FundingAccruedEvent {
     pub k_after: u128,
     pub elapsed_secs: i64,
     pub rate_bps: u16,
+    pub effective_rate_bps: u16,
     pub timestamp: i64,
 }
 
@@ -124,9 +127,11 @@ pub struct UpdatePriceEvent {
 #[event]
 pub struct FundingDistributedEvent {
     pub freed_usdc: u64,
+    pub protocol_fee: u64,
     pub fee_per_share_delta: u128,
     pub k_before: u128,
     pub k_after: u128,
     pub sol_price: u64,
+    pub effective_rate_bps: u16,
     pub timestamp: i64,
 }

@@ -68,6 +68,8 @@ pub struct PoolState {
     pub min_lp_deposit: u64,
     /// Суммарные pending fees всех LP (для защиты admin withdraw_fees)
     pub total_lp_fees_pending: u64,
+    /// Накопленные protocol fees (20% от trading + funding), доступные admin для вывода
+    pub protocol_fees_accumulated: u64,
 }
 
 /// Позиция LP провайдера в конкретном пуле.
